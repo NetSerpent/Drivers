@@ -36,6 +36,9 @@
     <ClCompile Include="globals.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="packet_queue.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h">
@@ -48,6 +51,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="globals.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="packet_queue.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,4 +1,5 @@
 #include "filter.h"
+#include "packet_queue.h" 
 
 NTSTATUS NotifyCallback(FWPS_CALLOUT_NOTIFY_TYPE type, const GUID* filterkey, const FWPS_FILTER* filter)
 {
@@ -7,7 +8,7 @@ NTSTATUS NotifyCallback(FWPS_CALLOUT_NOTIFY_TYPE type, const GUID* filterkey, co
 
 VOID FlowDeleteCallback(UINT16 layerid, UINT32 calloutid, UINT64 flowcontext)
 {
-    // Implementation (if needed)
+    
 }
 
 VOID FilterCallback(const FWPS_INCOMING_VALUES0* Values,
@@ -19,12 +20,14 @@ VOID FilterCallback(const FWPS_INCOMING_VALUES0* Values,
     FWPS_CLASSIFY_OUT0* classifyout)
 {
     FWPS_STREAM_CALLOUT_IO_PACKET* packet;
-    DebugMessage("Netserpent: Data is here\r\n");
-
     packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerdata;
 
-    RtlZeroMemory(classifyout, sizeof(FWPS_CLASSIFY_OUT0));
+    // (For demonstration, we simulate extracting a payload.)
+    UCHAR simulatedPayload[] = { 0x11, 0x22, 0x33, 0x44 };
+    // Queue the packet in PCAP format.
+    QueuePcapPacket(simulatedPayload, sizeof(simulatedPayload));
 
+    RtlZeroMemory(classifyout, sizeof(FWPS_CLASSIFY_OUT0));
     packet->streamAction = FWPS_STREAM_ACTION_NONE;
     classifyout->actionType = FWP_ACTION_PERMIT;
 
