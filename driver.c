@@ -1,3 +1,43 @@
+
+#include "common.h"
+#include "wfp.h"
+#include "filter.h"
+#include "globals.h"
+
+
+
+VOID DriverUnload(PDRIVER_OBJECT DriverObject)
+{
+    UnInitWfp();
+    IoDeleteDevice(DeviceObject);
+    DebugMessage("NetSerpent: Unloaded Driver ");
+}
+
+NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
+{
+    NTSTATUS status;
+    DebugMessage("NetSerpent: Driver Entry running");
+
+    DriverObject->DriverUnload = DriverUnload;
+    status = IoCreateDevice(DriverObject, 0, NULL, FILE_DEVICE_UNKNOWN, 0, FALSE, &DeviceObject);
+    if (!NT_SUCCESS(status)) {
+        DebugMessage("NetSerpent: Failed to create device");
+        return status;
+    }
+
+    status = InitializeWfp();
+    if (!NT_SUCCESS(status)) {
+        DebugMessage("NetSerpent: Failed to initialize WFP");
+        return status;
+    }
+
+    DebugMessage("NetSerpent: Successful Driver Entry");
+    return status;
+}
+
+
+
+/*
 // Author: William Stobaugh
 // Starting date: Jan 27th, 2025
 // The base of the code was followed with a tutorial found at https://www.youtube.com/watch?v=6LmJHMU7R7Y&ab_channel=ProgrammingLoL
@@ -27,7 +67,7 @@
 // --------------------------------------------------------------------
 // Debug macro
 // --------------------------------------------------------------------
-#define DebugMessage(msg, ...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_INFO_LEVEL, msg, __VA_ARGS__)
+#define DebugMessage(msg, ...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, msg, __VA_ARGS__)
 
 
 // --------------------------------------------------------------------
@@ -269,3 +309,4 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     DebugMessage("NetSerpent: Successful Driver Entry");
     return status;
 }
+*/
