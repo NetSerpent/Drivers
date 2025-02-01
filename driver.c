@@ -4,6 +4,8 @@
 #include "filter.h"
 #include "globals.h"
 
+// Forward declaration of our new IOCTL dispatch routine.
+NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 
 
 VOID DriverUnload(PDRIVER_OBJECT DriverObject)
@@ -19,6 +21,10 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     DebugMessage("NetSerpent: Driver Entry running");
 
     DriverObject->DriverUnload = DriverUnload;
+
+    // Add the IOCTL dispatch handler.
+    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = DeviceIoControlHandler;
+
     status = IoCreateDevice(DriverObject, 0, NULL, FILE_DEVICE_UNKNOWN, 0, FALSE, &DeviceObject);
     if (!NT_SUCCESS(status)) {
         DebugMessage("NetSerpent: Failed to create device");
@@ -36,6 +42,70 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 }
 
 
+//---------------------------------------------------------------------
+// IOCTL Dispatch Routine
+//---------------------------------------------------------------------
+NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+{
+    PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
+    ULONG controlCode = irpSp->Parameters.DeviceIoControl.IoControlCode;
+    NTSTATUS status = STATUS_INVALID_DEVICE_REQUEST;
+    ULONG_PTR information = 0;
+
+    if (controlCode == IOCTL_GET_PCAP_PACKET) {
+        // For METHOD_BUFFERED, input and output share the same SystemBuffer.
+        PVOID inBuffer = Irp->AssociatedIrp.SystemBuffer;
+        PVOID outBuffer = Irp->AssociatedIrp.SystemBuffer;
+        ULONG inBufferLength = irpSp->Parameters.DeviceIoControl.InputBufferLength;
+        ULONG outBufferLength = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+
+        // Define sizes for the PCAP headers:
+        const ULONG globalHeaderSize = 24;   // PCAP Global Header size
+        const ULONG packetHeaderSize = 16;     // PCAP Per-Packet Header size
+
+        // We'll use the input buffer as the payload.
+        ULONG payloadSize = inBufferLength;
+        ULONG totalSize = globalHeaderSize + packetHeaderSize + payloadSize;
+
+        if (outBufferLength < totalSize) {
+            status = STATUS_BUFFER_TOO_SMALL;
+            // Inform the caller how many bytes are required.
+            information = totalSize;
+        }
+        else {
+            PUCHAR pOut = (PUCHAR)outBuffer;
+
+            // --- PCAP Global Header (24 bytes) ---
+            // Magic number (0xa1b2c3d4), version major (2), version minor (4)
+            *((ULONG*)(pOut)) = 0xa1b2c3d4;   // magic number
+            *((USHORT*)(pOut + 4)) = 2;             // version major
+            *((USHORT*)(pOut + 6)) = 4;             // version minor
+            *((ULONG*)(pOut + 8)) = 0;             // thiszone (GMT to local correction)
+            *((ULONG*)(pOut + 12)) = 0;             // sigfigs (timestamp accuracy)
+            *((ULONG*)(pOut + 16)) = 65535;         // snaplen (max packet length)
+            *((ULONG*)(pOut + 20)) = 1;             // network (LINKTYPE_ETHERNET)
+
+            // --- PCAP Packet Header (16 bytes) ---
+            PUCHAR pPacket = pOut + globalHeaderSize;
+            *((ULONG*)(pPacket)) = 0;            // ts_sec (timestamp seconds; use 0 or a real timestamp)
+            *((ULONG*)(pPacket + 4)) = 0;            // ts_usec (timestamp microseconds)
+            *((ULONG*)(pPacket + 8)) = payloadSize;  // incl_len (number of bytes saved)
+            *((ULONG*)(pPacket + 12)) = payloadSize;  // orig_len (actual packet length)
+
+            // --- Copy payload ---
+            // Place the content of the input buffer immediately after the packet header.
+            RtlCopyMemory(pPacket + packetHeaderSize, inBuffer, payloadSize);
+
+            status = STATUS_SUCCESS;
+            information = totalSize;
+        }
+    }
+
+    Irp->IoStatus.Status = status;
+    Irp->IoStatus.Information = information;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return status;
+}
 
 /*
 // Author: William Stobaugh

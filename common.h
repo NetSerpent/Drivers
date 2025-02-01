@@ -16,4 +16,8 @@
 // Debug macro definition
 #define DebugMessage(msg, ...) DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, msg, __VA_ARGS__)
 
+// NEW: Define our custom IOCTL for getting a PCAP-formatted packet.
+// (FILE_DEVICE_UNKNOWN is used here; adjust the code and function number as needed.)
+#define IOCTL_GET_PCAP_PACKET CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
 #endif // COMMON_H
