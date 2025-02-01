@@ -1,0 +1,7 @@
+﻿  Building 'KernelHelloWorld' with toolset 'WindowsKernelModeDriver10.0' and the 'Universal' target platform.
+  Stamping x64\Debug\KernelHelloWorld.inf
+  Stamping [Version] section with DriverVer=01/25/2025,15.38.47.427
+cl : command line  warning D9024: unrecognized source file type 'messages.h', object file assumed
+cl : command line  warning D9027: source file 'messages.h' ignored
+cl : command line  warning D9021: no action performed
+LINK : fatal error LNK1181: cannot open input file 'x64\Debug\messages.obj'
