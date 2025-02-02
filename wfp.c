@@ -2,100 +2,112 @@
 #include "filter.h"
 #include "globals.h"
 
+// Use the inbound IPv4 packet layer instead of the stream layer.
+DEFINE_GUID(WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID,
+    0xc80739ac, 0x0d54, 0x4343, 0x81, 0xc3, 0xc8, 0x13, 0xe3, 0x98, 0xc4, 0xe4);
+DEFINE_GUID(WFP_SAMPLE_SUB_LAYER_GUID,
+    0x09535fdf, 0x6b10, 0x4765, 0xb6, 0xf6, 0xa8, 0x47, 0x97, 0xe9, 0xfd, 0xec);
 
-//c80739ac-0d54-4343-81c3-c813e398c4e4
-DEFINE_GUID(WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID, 0xc80739ac, 0x0d54, 0x4343, 0x81, 0xc3, 0xc8, 0x13, 0xe3, 0x98, 0xc4, 0xe4);
-//09535fdf - 6b10 - 4765 - b6f6 - a84797e9fdec
-DEFINE_GUID(WFP_SAMPLE_SUB_LAYER_GUID, 0x09535fdf, 0x6b10, 0x4765, 0xb6, 0xf6, 0xa8, 0x47, 0x97, 0xe9, 0xfd, 0xec);
-
-
-// Function implementations
-NTSTATUS WfpOpenEngine()
+NTSTATUS WfpOpenEngine(void)
 {
     return FwpmEngineOpen(NULL, RPC_C_AUTHN_WINNT, NULL, NULL, &EngineHandle);
 }
 
-NTSTATUS WfpRegisterCallout()
+NTSTATUS WfpRegisterCallout(void)
 {
     FWPS_CALLOUT Callout = { 0 };
+
     Callout.calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID;
     Callout.flags = 0;
-    Callout.classifyFn = FilterCallback;  // declared in your filter module
-    Callout.notifyFn = NotifyCallback;      // declared in your filter module
-    Callout.flowDeleteFn = FlowDeleteCallback; // declared in your filter module
+    Callout.classifyFn = FilterCallback;  // See updated filter callback below
+    Callout.notifyFn = NotifyCallback;
+    Callout.flowDeleteFn = FlowDeleteCallback;
+    // Change the applicable layer to capture entire IPv4 packets.
     return FwpsCalloutRegister(DeviceObject, &Callout, &RegCalloutId);
 }
 
-NTSTATUS WfpAddCallout()
+NTSTATUS WfpAddCallout(void)
 {
     FWPM_CALLOUT callout = { 0 };
     callout.flags = 0;
     callout.displayData.name = L"EstablishedCalloutName";
     callout.displayData.description = L"EstablishedCalloutName";
     callout.calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID;
-    callout.applicableLayer = FWPM_LAYER_STREAM_V4;
+    // Use the inbound IPv4 packet layer
+    callout.applicableLayer = FWPM_LAYER_INBOUND_IPPACKET_V4;
     return FwpmCalloutAdd(EngineHandle, &callout, NULL, &AddCalloutId);
 }
 
 NTSTATUS WfpAddSublayer()
 {
     FWPM_SUBLAYER sublayer = { 0 };
+
     sublayer.displayData.name = L"EstablishedSublayerName";
     sublayer.displayData.description = L"EstablishedSublayerName";
     sublayer.subLayerKey = WFP_SAMPLE_SUB_LAYER_GUID;
-    sublayer.weight = 65500;
-    return FwpmSubLayerAdd(EngineHandle, &sublayer, NULL);
+    sublayer.weight = 65500; // Higher weight = higher priority
+
+    NTSTATUS status = FwpmSubLayerAdd(EngineHandle, &sublayer, NULL);
+    if (status == STATUS_FWP_ALREADY_EXISTS)
+    {
+        DebugMessage("NetSerpent: Sublayer already exists, using existing one.\n");
+        status = STATUS_SUCCESS;
+    }
+    return status;
 }
+
 
 NTSTATUS WfpAddFilter()
 {
     FWPM_FILTER filter = { 0 };
-    FWPM_FILTER_CONDITION condition[1] = { 0 };
 
     filter.displayData.name = L"EstablishedFilterName";
     filter.displayData.description = L"EstablishedFilterName";
-    filter.layerKey = FWPM_LAYER_STREAM_V4;
+    // Use the inbound IPv4 packet layer to capture full packets.
+    filter.layerKey = FWPM_LAYER_INBOUND_IPPACKET_V4;
+    filter.subLayerKey = WFP_SAMPLE_SUB_LAYER_GUID; // Associate with your sublayer
     filter.weight.type = FWP_EMPTY;
-    filter.numFilterConditions = 1;
-    filter.filterCondition = condition;
+    filter.numFilterConditions = 0; // No conditions needed for full packet capture.
     filter.action.type = FWP_ACTION_CALLOUT_TERMINATING;
     filter.action.calloutKey = WFP_SAMPLE_ESTABLISHED_CALLOUT_V4_GUID;
-
-    condition[0].fieldKey = FWPM_CONDITION_IP_LOCAL_PORT;
-    condition[0].matchType = FWP_MATCH_LESS_OR_EQUAL;
-    condition[0].conditionValue.type = FWP_UINT16;
-    condition[0].conditionValue.uint16 = 65000;
 
     return FwpmFilterAdd(EngineHandle, &filter, NULL, &filterid);
 }
 
-NTSTATUS InitializeWfp()
+
+
+NTSTATUS InitializeWfp(void)
 {
-    if (!NT_SUCCESS(WfpOpenEngine()))
-    {
-        DebugMessage("NetSerpent: Failed to open engine");
+    NTSTATUS status = WfpOpenEngine();
+    if (!NT_SUCCESS(status)) {
+        DebugStatus("NetSerpent: Failed to open engine", status);
         goto end;
     }
-    if (!NT_SUCCESS(WfpRegisterCallout()))
-    {
-        DebugMessage("NetSerpent: Failed to register callout");
+
+    status = WfpRegisterCallout();
+    if (!NT_SUCCESS(status)) {
+        DebugStatus("NetSerpent: Failed to register callout", status);
         goto end;
     }
-    if (!NT_SUCCESS(WfpAddCallout()))
-    {
-        DebugMessage("NetSerpent: Failed to add callout");
+
+    status = WfpAddCallout();
+    if (!NT_SUCCESS(status)) {
+        DebugStatus("NetSerpent: Failed to add callout", status);
         goto end;
     }
-    if (!NT_SUCCESS(WfpAddSublayer()))
-    {
-        DebugMessage("NetSerpent: Failed to add sublayer");
+
+    status = WfpAddSublayer();
+    if (!NT_SUCCESS(status)) {
+        DebugStatus("NetSerpent: Failed to add sublayer", status);
         goto end;
     }
-    if (!NT_SUCCESS(WfpAddFilter()))
-    {
-        DebugMessage("NetSerpent: Failed to add filter");
+
+    status = WfpAddFilter();
+    if (!NT_SUCCESS(status)) {
+        DebugStatus("NetSerpent: Failed to add filter", status);
         goto end;
     }
+
     return STATUS_SUCCESS;
 
 end:
@@ -103,21 +115,17 @@ end:
     return STATUS_UNSUCCESSFUL;
 }
 
-VOID UnInitWfp()
+VOID UnInitWfp(void)
 {
-    if (EngineHandle != NULL)
-    {
-        if (filterid != 0)
-        {
+    if (EngineHandle != NULL) {
+        if (filterid != 0) {
             FwpmFilterDeleteById(EngineHandle, filterid);
             FwpmSubLayerDeleteByKey(EngineHandle, &WFP_SAMPLE_SUB_LAYER_GUID);
         }
-        if (AddCalloutId != 0)
-        {
+        if (AddCalloutId != 0) {
             FwpmCalloutDeleteById(EngineHandle, AddCalloutId);
         }
-        if (RegCalloutId != 0)
-        {
+        if (RegCalloutId != 0) {
             FwpsCalloutUnregisterById(RegCalloutId);
         }
         FwpmEngineClose(EngineHandle);

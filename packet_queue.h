@@ -10,10 +10,13 @@
 // Initialize the packet queue (e.g. initialize the mutex).
 VOID PacketQueueInitialize(void);
 
-// Queue a packet (format it into PCAP format and store it).
+// Queue a packet (format the captured payload into PCAP format and store it).
 NTSTATUS QueuePcapPacket(PUCHAR payload, ULONG payloadSize);
 
 // Dequeue a packet from the queue (copy it to the caller’s buffer).
 NTSTATUS DequeuePcapPacket(PUCHAR outBuffer, ULONG outBufferLength, PULONG bytesCopied);
+
+// Print the queued PCAP packet (dump its contents in hex).
+VOID PrintPcapPacket(VOID);
 
 #endif // PACKET_QUEUE_H

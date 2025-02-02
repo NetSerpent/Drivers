@@ -124,9 +124,11 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="common.c" />
     <ClCompile Include="filter.c" />
     <ClCompile Include="driver.c" />
     <ClCompile Include="globals.c" />
+    <ClCompile Include="packet_extractor.c" />
     <ClCompile Include="packet_queue.c" />
     <ClCompile Include="wfp.c" />
   </ItemGroup>
@@ -134,6 +136,7 @@
     <ClInclude Include="common.h" />
     <ClInclude Include="filter.h" />
     <ClInclude Include="globals.h" />
+    <ClInclude Include="packet_extractor.h" />
     <ClInclude Include="packet_queue.h" />
     <ClInclude Include="wfp.h" />
   </ItemGroup>

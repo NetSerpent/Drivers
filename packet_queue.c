@@ -1,18 +1,16 @@
 #include "packet_queue.h"
+#include <stdio.h>  // for sprintf; note that kernel mode has limited stack so be cautious
 
-// Define a single–slot buffer for the latest PCAP packet.
-// (For a production driver, you would implement a proper multi–packet queue.)
+// Global (static) storage for our single–slot packet.
 static UCHAR gPcapPacketBuffer[MAX_PCAP_PACKET_SIZE] = { 0 };
 static ULONG gPcapPacketSize = 0;
 static FAST_MUTEX gPacketMutex;
 
-// Call this from DriverEntry to initialize the packet queue.
 VOID PacketQueueInitialize(void)
 {
     ExInitializeFastMutex(&gPacketMutex);
 }
 
-// Queue a packet: format the captured payload into PCAP format and store it.
 NTSTATUS QueuePcapPacket(PUCHAR payload, ULONG payloadSize)
 {
     const ULONG globalHeaderSize = 24;   // PCAP Global Header size
@@ -36,7 +34,7 @@ NTSTATUS QueuePcapPacket(PUCHAR payload, ULONG payloadSize)
 
     // --- PCAP Packet Header (16 bytes) ---
     PUCHAR pPacket = pBuf + globalHeaderSize;
-    // Get a simple timestamp (for real use, you might call KeQuerySystemTime)
+    // For a simple timestamp, we use KeQuerySystemTime.
     LARGE_INTEGER systemTime;
     KeQuerySystemTime(&systemTime);
     ULONG ts_sec = (ULONG)(systemTime.QuadPart / 10000000);
@@ -55,7 +53,6 @@ NTSTATUS QueuePcapPacket(PUCHAR payload, ULONG payloadSize)
     return STATUS_SUCCESS;
 }
 
-// Dequeue the packet: copy the queued PCAP packet into outBuffer.
 NTSTATUS DequeuePcapPacket(PUCHAR outBuffer, ULONG outBufferLength, PULONG bytesCopied)
 {
     NTSTATUS status = STATUS_SUCCESS;
@@ -72,10 +69,32 @@ NTSTATUS DequeuePcapPacket(PUCHAR outBuffer, ULONG outBufferLength, PULONG bytes
     else {
         RtlCopyMemory(outBuffer, gPcapPacketBuffer, gPcapPacketSize);
         *bytesCopied = gPcapPacketSize;
-        // Clear the packet (simulate dequeue).
+        // Clear the packet to simulate dequeue.
         gPcapPacketSize = 0;
     }
 
     ExReleaseFastMutex(&gPacketMutex);
     return status;
+}
+
+VOID PrintPcapPacket(VOID)
+{
+    ULONG i;
+    ExAcquireFastMutex(&gPacketMutex);
+    if (gPcapPacketSize > 0) {
+        DebugMessage("PCAP Packet (%u bytes):", gPcapPacketSize);
+        for (i = 0; i < gPcapPacketSize; i += 16) {
+            char line[80] = { 0 };
+            int offset = 0;
+            offset += sprintf(line + offset, "   %04X: ", i);
+            for (ULONG j = i; j < i + 16 && j < gPcapPacketSize; j++) {
+                offset += sprintf(line + offset, "%02X ", gPcapPacketBuffer[j]);
+            }
+            DebugMessage("%s", line);
+        }
+    }
+    else {
+        DebugMessage("No PCAP packet in queue.");
+    }
+    ExReleaseFastMutex(&gPacketMutex);
 }
