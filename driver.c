@@ -19,6 +19,32 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 }
 
 
+// ----------------------------------------
+//  I/O service opening and closing
+// ----------------------------------------
+NTSTATUS DriverCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+{
+    // Optionally add a debug print:
+    DebugMessage("NetSerpent: IRP_MJ_CREATE received.\n");
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return STATUS_SUCCESS;
+}
+
+NTSTATUS DriverClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+{
+    // Optionally add a debug print:
+    DebugMessage("NetSerpent: IRP_MJ_CLOSE received.\n");
+
+    Irp->IoStatus.Status = STATUS_SUCCESS;
+    Irp->IoStatus.Information = 0;
+    IoCompleteRequest(Irp, IO_NO_INCREMENT);
+    return STATUS_SUCCESS;
+}
+
+
 
 
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -37,7 +63,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
         FALSE,
         &DeviceObject);
     if (!NT_SUCCESS(status)) {
-        DebugMessage("NetSerpent: Failed to create device");
+        DebugMessage("NetSerpent: Failed to create device\n");
         return status;
     }
 
@@ -45,29 +71,33 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     status = IoCreateSymbolicLink(&symLinkName, &deviceName);
     if (!NT_SUCCESS(status)) {
         IoDeleteDevice(DeviceObject);
-        DebugMessage("NetSerpent: Failed to create symbolic link");
+        DebugMessage("NetSerpent: Failed to create symbolic link\n");
         return status;
     }
 
-    // Set the unload routine and IOCTL dispatch routine.
-    DriverObject->DriverUnload = DriverUnload;
-    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = DeviceIoControlHandler;
+    DebugMessage("NetSerpent: Created symbolic link: \\DosDevices\\NetSerpent -> \\Device\\NetSerpent\n");
 
-    // Initialize the packet queue.
+    // Register IRP dispatch routines
+    DriverObject->MajorFunction[IRP_MJ_CREATE] = DriverCreate;
+    DriverObject->MajorFunction[IRP_MJ_CLOSE] = DriverClose;
+    DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = DeviceIoControlHandler;
+    DriverObject->DriverUnload = DriverUnload;
+
+    // Initialize the packet queue and WFP components
     PacketQueueInitialize();
 
-    // Initialize WFP, etc.
     status = InitializeWfp();
     if (!NT_SUCCESS(status)) {
         IoDeleteSymbolicLink(&symLinkName);
         IoDeleteDevice(DeviceObject);
-        DebugMessage("NetSerpent: Failed to initialize WFP");
+        DebugMessage("NetSerpent: Failed to initialize WFP\n");
         return status;
     }
 
-    DebugMessage("NetSerpent: Successful Driver Entry");
+    DebugMessage("NetSerpent: Successful Driver Entry\n");
     return status;
 }
+
 
 
 //---------------------------------------------------------------------

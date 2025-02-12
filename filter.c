@@ -31,7 +31,7 @@ VOID FilterCallback(const FWPS_INCOMING_VALUES0* Values,
             NTSTATUS qStatus = QueuePcapPacket(packetBuffer, packetSize);
             if (NT_SUCCESS(qStatus)) {
                 // Print out the queued PCAP packet in hex
-                PrintPcapPacket();
+                //PrintPcapPacket();
             }
             else {
                 DebugMessage("Failed to queue PCAP packet: 0x%X", qStatus);
