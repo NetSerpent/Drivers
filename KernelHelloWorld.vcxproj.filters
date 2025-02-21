@@ -17,6 +17,18 @@
       <UniqueIdentifier>{8E41214B-6785-4CFE-B992-037D68949A14}</UniqueIdentifier>
       <Extensions>inf;inv;inx;mof;mc;</Extensions>
     </Filter>
+    <Filter Include="Source Files\Filter Functions">
+      <UniqueIdentifier>{0549f26f-ea56-466e-bbe7-559624f4eec7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Setup">
+      <UniqueIdentifier>{4b7bb851-8088-4c82-a521-60cfa013d212}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Communication">
+      <UniqueIdentifier>{b7b6e8a4-3f86-4603-b440-2d4647ebc463}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Common">
+      <UniqueIdentifier>{38aabd33-9498-4314-8cb1-79928fa27ba3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="KernelHelloWorld.inf">
@@ -27,17 +39,29 @@
     <ClCompile Include="driver.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="wfp.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="filter.c">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Filter Functions</Filter>
     </ClCompile>
-    <ClCompile Include="globals.c">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="dns_helper.c">
+      <Filter>Source Files\Filter Functions</Filter>
+    </ClCompile>
+    <ClCompile Include="wfp.c">
+      <Filter>Source Files\Setup</Filter>
+    </ClCompile>
+    <ClCompile Include="packet_extractor.c">
+      <Filter>Source Files\Communication</Filter>
     </ClCompile>
     <ClCompile Include="packet_queue.c">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\Communication</Filter>
+    </ClCompile>
+    <ClCompile Include="common.c">
+      <Filter>Source Files\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="globals.c">
+      <Filter>Source Files\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="initialize_driver.c">
+      <Filter>Source Files\Setup</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -54,6 +78,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="packet_queue.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="packet_extractor.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dns_helper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="initialize_driver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

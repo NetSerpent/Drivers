@@ -125,17 +125,21 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="common.c" />
+    <ClCompile Include="dns_helper.c" />
     <ClCompile Include="filter.c" />
     <ClCompile Include="driver.c" />
     <ClCompile Include="globals.c" />
+    <ClCompile Include="initialize_driver.c" />
     <ClCompile Include="packet_extractor.c" />
     <ClCompile Include="packet_queue.c" />
     <ClCompile Include="wfp.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h" />
+    <ClInclude Include="dns_helper.h" />
     <ClInclude Include="filter.h" />
     <ClInclude Include="globals.h" />
+    <ClInclude Include="initialize_driver.h" />
     <ClInclude Include="packet_extractor.h" />
     <ClInclude Include="packet_queue.h" />
     <ClInclude Include="wfp.h" />

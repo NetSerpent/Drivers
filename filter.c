@@ -1,6 +1,7 @@
 #include "filter.h"
 #include "packet_queue.h"
 #include "packet_extractor.h"
+#include "dns_helper.h"  // Added for DNS whitelisting
 
 NTSTATUS NotifyCallback(FWPS_CALLOUT_NOTIFY_TYPE type, const GUID* filterkey, const FWPS_FILTER* filter)
 {
@@ -22,6 +23,15 @@ VOID FilterCallback(const FWPS_INCOMING_VALUES0* Values,
 {
     // For FWPM_LAYER_INBOUND_IPPACKET_V4, layerdata is a pointer to a NET_BUFFER_LIST.
     NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerdata;
+
+    // Whitelist DNS packets: if this is a DNS packet, immediately permit it.
+    if (IsDnsPacket(nbl)) {
+        RtlZeroMemory(classifyout, sizeof(FWPS_CLASSIFY_OUT0));
+        classifyout->actionType = FWP_ACTION_PERMIT;
+        return;
+    }
+
+    // For non-DNS packets, perform our usual processing.
     if (nbl) {
         PUCHAR packetBuffer = NULL;
         ULONG packetSize = 0;
@@ -30,8 +40,8 @@ VOID FilterCallback(const FWPS_INCOMING_VALUES0* Values,
             // Queue the packet (which will prepend the PCAP headers)
             NTSTATUS qStatus = QueuePcapPacket(packetBuffer, packetSize);
             if (NT_SUCCESS(qStatus)) {
-                // Print out the queued PCAP packet in hex
-                //PrintPcapPacket();
+                // Optionally, print the queued PCAP packet in hex.
+                // PrintPcapPacket();
             }
             else {
                 DebugMessage("Failed to queue PCAP packet: 0x%X", qStatus);
@@ -43,11 +53,8 @@ VOID FilterCallback(const FWPS_INCOMING_VALUES0* Values,
         }
     }
 
-    // Let the packet pass through.
-    FWPS_STREAM_CALLOUT_IO_PACKET* dummyPacket = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerdata;
+    // Permit the packet to pass.
     RtlZeroMemory(classifyout, sizeof(FWPS_CLASSIFY_OUT0));
-    // Note: In an IP packet layer callout, you typically use NET_BUFFER_LIST handling.
-    // Here we simply permit the packet.
     classifyout->actionType = FWP_ACTION_PERMIT;
 
     if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)

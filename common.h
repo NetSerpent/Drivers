@@ -20,5 +20,6 @@ VOID DebugStatus(PCSTR msg, NTSTATUS status);
 // NEW: Define our custom IOCTL for getting a PCAP-formatted packet.
 // (FILE_DEVICE_UNKNOWN is used here; adjust the code and function number as needed.)
 #define IOCTL_GET_PCAP_PACKET CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
+#define IOCTL_GET_ERROR_MESSAGE CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 #endif // COMMON_H
