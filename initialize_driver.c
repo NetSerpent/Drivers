@@ -65,8 +65,6 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
 NTSTATUS DriverCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    // Optionally add a debug print:
-    DebugMessage("NetSerpent: IRP_MJ_CREATE received.\n");
 
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
@@ -76,8 +74,6 @@ NTSTATUS DriverCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
 NTSTATUS DriverClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-    // Optionally add a debug print:
-    DebugMessage("NetSerpent: IRP_MJ_CLOSE received.\n");
 
     Irp->IoStatus.Status = STATUS_SUCCESS;
     Irp->IoStatus.Information = 0;
@@ -85,10 +81,12 @@ NTSTATUS DriverClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
-NTSTATUS ServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
+
+
+NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
     NTSTATUS status;
-    UNICODE_STRING deviceName = RTL_CONSTANT_STRING(L"\\Device\\NetSerpent");
+    UNICODE_STRING deviceName = RTL_CONSTANT_STRING(L"\\Device\\NetSerpent"); // TODO: Perhaps we store this in a constants file?
     UNICODE_STRING symLinkName = RTL_CONSTANT_STRING(L"\\DosDevices\\NetSerpent");
 
     // Create the device
@@ -117,7 +115,12 @@ NTSTATUS ServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPat
         return status;
     }
 
-    DebugMessage("NetSerpent: Created symbolic link: \\DosDevices\\NetSerpent -> \\Device\\NetSerpent\n");
+    return status;
+}
+
+NTSTATUS FilterServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
+{
+    NTSTATUS status;
 
     // Register IRP dispatch routines
     DriverObject->MajorFunction[IRP_MJ_CREATE] = DriverCreate;
@@ -125,14 +128,26 @@ NTSTATUS ServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPat
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = DeviceIoControlHandler;
     DriverObject->DriverUnload = DriverUnload;
 
+    // TODO: Before we send out any packets, we need to confirm that we have access to the internet
+    /*
+    status = confirmConnection()
+    if (!NT_SUCCESS(status))
+    {
+        DebugMessage("NetSerpent: Failed to connect to NetSerpent servers\n");
+        RtlStringCchPrintfA(g_ErrorMessage, sizeof(g_ErrorMessage),
+            "NetSerpent Error: Failed to connect to NetSerpent servers (0x%08X)", status);
+    }
+    */
+
+
     // Initialize the packet queue and WFP components
     PacketQueueInitialize();
 
     status = InitializeWfp();
     if (!NT_SUCCESS(status)) {
+        DebugMessage("NetSerpent: Sending an error message\n");
         RtlStringCchPrintfA(g_ErrorMessage, sizeof(g_ErrorMessage),
             "NetSerpent Error: Failed to initialize WFP (0x%08X)", status);
-        IoDeleteSymbolicLink(&symLinkName);
         IoDeleteDevice(DeviceObject);
         DebugMessage("%s\n", g_ErrorMessage);
         return status;

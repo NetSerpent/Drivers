@@ -130,6 +130,7 @@
     <ClCompile Include="driver.c" />
     <ClCompile Include="globals.c" />
     <ClCompile Include="initialize_driver.c" />
+    <ClCompile Include="network_info.c" />
     <ClCompile Include="packet_extractor.c" />
     <ClCompile Include="packet_queue.c" />
     <ClCompile Include="wfp.c" />
@@ -140,6 +141,7 @@
     <ClInclude Include="filter.h" />
     <ClInclude Include="globals.h" />
     <ClInclude Include="initialize_driver.h" />
+    <ClInclude Include="network_info.h" />
     <ClInclude Include="packet_extractor.h" />
     <ClInclude Include="packet_queue.h" />
     <ClInclude Include="wfp.h" />
