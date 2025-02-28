@@ -66,6 +66,9 @@
     <ClCompile Include="network_info.c">
       <Filter>Source Files\Setup</Filter>
     </ClCompile>
+    <ClCompile Include="connection.c">
+      <Filter>Source Files\Setup</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h">
@@ -93,6 +96,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="network_info.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="connection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

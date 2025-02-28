@@ -96,7 +96,7 @@ NTSTATUS SaveNetworkInfo(GUID* pNetworkGuid)
     return status;
 }
 
-NTSTATUS InitializeNetworkConnection()
+NTSTATUS WaitForNetworkConnectionInformation()
 {
     // Check if the user has existing network information stored.
     GUID networkGuid = { 0 };
@@ -107,8 +107,11 @@ NTSTATUS InitializeNetworkConnection()
     }
     else {
         DebugMessage("NetSerpent: No existing network info found. Awaiting admin network connection command.\n", netInfoStatus);
+        
+        // TODO: Wait until we make an admin connection, client must send us a message that a connection is formed...
+
         // For simulation purposes, we immediately generate a new network GUID.
-        NTSTATUS guidStatus = ExUuidCreate(&networkGuid);  // Use ExUuidCreate instead of RtlGenerateGuid
+        NTSTATUS guidStatus = ExUuidCreate(&networkGuid);  // TODO: In reality we would save whatever information the client sends us.
         if (NT_SUCCESS(guidStatus)) {
             DebugMessage("NetSerpent: Generated new network GUID.\n", guidStatus);
             NTSTATUS saveStatus = SaveNetworkInfo(&networkGuid);

@@ -128,24 +128,11 @@ NTSTATUS FilterServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Regis
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = DeviceIoControlHandler;
     DriverObject->DriverUnload = DriverUnload;
 
-    // TODO: Before we send out any packets, we need to confirm that we have access to the internet
-    /*
-    status = confirmConnection()
-    if (!NT_SUCCESS(status))
-    {
-        DebugMessage("NetSerpent: Failed to connect to NetSerpent servers\n");
-        RtlStringCchPrintfA(g_ErrorMessage, sizeof(g_ErrorMessage),
-            "NetSerpent Error: Failed to connect to NetSerpent servers (0x%08X)", status);
-    }
-    */
-
-
     // Initialize the packet queue and WFP components
     PacketQueueInitialize();
 
     status = InitializeWfp();
     if (!NT_SUCCESS(status)) {
-        DebugMessage("NetSerpent: Sending an error message\n");
         RtlStringCchPrintfA(g_ErrorMessage, sizeof(g_ErrorMessage),
             "NetSerpent Error: Failed to initialize WFP (0x%08X)", status);
         IoDeleteDevice(DeviceObject);
@@ -153,7 +140,6 @@ NTSTATUS FilterServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Regis
         return status;
     }
 
-    DebugMessage("NetSerpent: Successful Driver Entry\n");
     return STATUS_SUCCESS;
 }
 

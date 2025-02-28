@@ -13,4 +13,7 @@ NTSTATUS LoadNetworkInfo(GUID* pNetworkGuid);
 // Saves the given network UUID to local storage.
 NTSTATUS SaveNetworkInfo(GUID* pNetworkGuid);
 
+// Checks if network information is stored, otherwise waits for an admin connection
+NTSTATUS WaitForNetworkConnectionInformation();
+
 #endif // NETWORK_INFO_H
