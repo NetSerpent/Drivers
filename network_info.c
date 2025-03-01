@@ -139,31 +139,32 @@ NTSTATUS SaveNetworkInfo(GUID* pNetworkGuid)
 
 NTSTATUS WaitForNetworkConnectionInformation()
 {
-    // Check if the user has existing network information stored.
+    // First, try to load any existing network info.
     GUID networkGuid = { 0 };
     NTSTATUS netInfoStatus = LoadNetworkInfo(&networkGuid);
     if (NT_SUCCESS(netInfoStatus)) {
         DebugMessage("NetSerpent: Loaded network info successfully.\n", netInfoStatus);
-        return netInfoStatus;
+        return STATUS_SUCCESS;
     }
-    else {
-        DebugMessage("NetSerpent: No existing network info found. Awaiting admin network connection command.\n", netInfoStatus);
-        
-        // TODO: Wait until we make an admin connection, client must send us a message that a connection is formed...
 
-        // For simulation purposes, we immediately generate a new network GUID.
-        NTSTATUS guidStatus = ExUuidCreate(&networkGuid);  // TODO: In reality we would save whatever information the client sends us.
-        if (NT_SUCCESS(guidStatus)) {
-            DebugMessage("NetSerpent: Generated new network GUID.\n", guidStatus);
-            NTSTATUS saveStatus = SaveNetworkInfo(&networkGuid);
-            if (!NT_SUCCESS(saveStatus)) {
-                DebugMessage("NetSerpent: Failed to save network info: 0x%08X\n", saveStatus);
-            }
-            return saveStatus;
-        }
-        else {
-            DebugMessage("NetSerpent: Failed to generate new GUID: 0x%08X\n", guidStatus);
-            return guidStatus;
-        }
+    DebugMessage("NetSerpent: No existing network info found. Awaiting admin network connection command.\n", netInfoStatus);
+
+    // Wait for the admin to set the network info (for example, wait up to 30 seconds).
+    LARGE_INTEGER timeout;
+    timeout.QuadPart = -30 * 1000 * 1000 * 10LL; // 30 seconds in 100-nanosecond intervals
+    NTSTATUS waitStatus = KeWaitForSingleObject(&AdminConnectionEvent, Executive, KernelMode, FALSE, &timeout);
+    if (waitStatus == STATUS_TIMEOUT) {
+        DebugMessage("NetSerpent: Timeout waiting for admin network connection.\n");
+        return STATUS_TIMEOUT;
     }
+
+    // After the event is signaled, try loading the network info again.
+    netInfoStatus = LoadNetworkInfo(&networkGuid);
+    if (NT_SUCCESS(netInfoStatus)) {
+        DebugMessage("NetSerpent: Loaded network info successfully after admin connection.\n", netInfoStatus);
+        return STATUS_SUCCESS;
+    }
+
+    return STATUS_UNSUCCESSFUL;
 }
+

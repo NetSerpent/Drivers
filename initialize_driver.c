@@ -4,6 +4,7 @@
 #include "globals.h"
 #include "packet_queue.h"
 #include <ntstrsafe.h> // For RtlStringCchPrintfA
+#include "network_info.h"
 
 //---------------------------------------------------------------------
 // Function called when driver is being unloaded
@@ -21,7 +22,6 @@ VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 // ----------------------------------------
 //  I/O service opening and closing
 // ----------------------------------------
-// initialize_driver.c (modify DeviceIoControlHandler)
 NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
@@ -29,6 +29,7 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     NTSTATUS status = STATUS_INVALID_DEVICE_REQUEST;
     ULONG_PTR information = 0;
     PVOID outBuffer = Irp->AssociatedIrp.SystemBuffer;
+    ULONG inBufferLength = irpSp->Parameters.DeviceIoControl.InputBufferLength;
     ULONG outBufferLength = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
 
     switch (controlCode) {
@@ -52,6 +53,24 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         }
         break;
     }
+    // NEW: Handle admin connection by setting network info.
+    case IOCTL_SET_NETWORK_INFO:
+    {
+        // Expect the input buffer to contain a GUID.
+        if (inBufferLength < sizeof(GUID)) {
+            status = STATUS_BUFFER_TOO_SMALL;
+            break;
+        }
+        GUID* newGuid = (GUID*)Irp->AssociatedIrp.SystemBuffer;
+        NTSTATUS saveStatus = SaveNetworkInfo(newGuid);
+        if (NT_SUCCESS(saveStatus)) {
+            // Signal the event so that WaitForNetworkConnectionInformation can continue.
+            KeSetEvent(&AdminConnectionEvent, IO_NO_INCREMENT, FALSE);
+        }
+        status = saveStatus;
+        information = sizeof(GUID);
+        break;
+    }
     default:
         break;
     }
@@ -63,6 +82,7 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 }
 
 
+
 NTSTATUS DriverCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
 
@@ -72,6 +92,7 @@ NTSTATUS DriverCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
+
 NTSTATUS DriverClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
 
@@ -80,7 +101,6 @@ NTSTATUS DriverClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return STATUS_SUCCESS;
 }
-
 
 
 NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
@@ -105,6 +125,9 @@ NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRIN
         return status;
     }
 
+    // NEW: Initialize our admin connection event (non-signaled)
+    KeInitializeEvent(&AdminConnectionEvent, NotificationEvent, FALSE);
+
     // Create a symbolic link for user mode.
     status = IoCreateSymbolicLink(&symLinkName, &deviceName);
     if (!NT_SUCCESS(status)) {
@@ -118,6 +141,11 @@ NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRIN
     return status;
 }
 
+
+
+// ----------------------------------------
+//  BEGINS PACKET FILTERING LOOP
+// ----------------------------------------
 NTSTATUS FilterServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
     NTSTATUS status;

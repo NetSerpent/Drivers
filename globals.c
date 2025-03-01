@@ -8,3 +8,6 @@ UINT64 filterid = 0;
 
 // Initialize error message to empty
 CHAR g_ErrorMessage[256] = { 0 };
+
+// A notification event that is initially not signaled.
+KEVENT AdminConnectionEvent;

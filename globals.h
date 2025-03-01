@@ -14,4 +14,7 @@ extern UINT64 filterid;
 // New global to hold a descriptive error message (if any)
 extern CHAR g_ErrorMessage[256];
 
+// NEW: Global event to signal admin connection (i.e. network info set)
+extern KEVENT AdminConnectionEvent;
+
 #endif // GLOBALS_H
