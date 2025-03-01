@@ -1,9 +1,42 @@
 #include "network_info.h"
 #include "globals.h"
 
-// Define the file path for our network information.
-// Note: In kernel mode, paths typically use the "\\??\\" prefix.
+// Define the directory and file paths.
+#define NETWORK_DIR      L"\\??\\C:\\NetSerpent"
 #define NETWORK_INFO_PATH L"\\??\\C:\\NetSerpent\\network.info"
+
+// Helper function to ensure the directory exists.
+static NTSTATUS EnsureNetworkDirectoryExists()
+{
+    UNICODE_STRING directoryPath;
+    RtlInitUnicodeString(&directoryPath, NETWORK_DIR);
+    OBJECT_ATTRIBUTES objAttr;
+    InitializeObjectAttributes(&objAttr, &directoryPath, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, NULL);
+
+    HANDLE dirHandle;
+    IO_STATUS_BLOCK ioStatusBlock;
+    NTSTATUS status = ZwCreateFile(
+        &dirHandle,
+        FILE_GENERIC_WRITE | SYNCHRONIZE,
+        &objAttr,
+        &ioStatusBlock,
+        NULL,
+        FILE_ATTRIBUTE_DIRECTORY,
+        0,
+        FILE_OPEN_IF, // Open if exists; create if not.
+        FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
+        NULL,
+        0
+    );
+    if (NT_SUCCESS(status))
+    {
+        ZwClose(dirHandle);
+    }
+    return status;
+}
+
+
+
 
 NTSTATUS LoadNetworkInfo(GUID* pNetworkGuid)
 {
@@ -60,6 +93,13 @@ NTSTATUS SaveNetworkInfo(GUID* pNetworkGuid)
         return STATUS_INVALID_PARAMETER;
     }
 
+    // Ensure that the directory exists.
+    NTSTATUS dirStatus = EnsureNetworkDirectoryExists();
+    if (!NT_SUCCESS(dirStatus)) {
+        DebugMessage("NetSerpent: Failed to create network directory: 0x%08X\n", dirStatus);
+        return dirStatus;
+    }
+
     UNICODE_STRING filePath;
     RtlInitUnicodeString(&filePath, NETWORK_INFO_PATH);
 
@@ -95,6 +135,7 @@ NTSTATUS SaveNetworkInfo(GUID* pNetworkGuid)
     ZwClose(fileHandle);
     return status;
 }
+
 
 NTSTATUS WaitForNetworkConnectionInformation()
 {
