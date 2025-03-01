@@ -1,15 +1,13 @@
 #include "network_info.h"
 #include "globals.h"
+#include "constants.h"
 
-// Define the directory and file paths.
-#define NETWORK_DIR      L"\\??\\C:\\NetSerpent"
-#define NETWORK_INFO_PATH L"\\??\\C:\\NetSerpent\\network.info"
 
 // Helper function to ensure the directory exists.
 static NTSTATUS EnsureNetworkDirectoryExists()
 {
     UNICODE_STRING directoryPath;
-    RtlInitUnicodeString(&directoryPath, NETWORK_DIR);
+    RtlInitUnicodeString(&directoryPath, NETSERPENT_NETWORK_DIR);
     OBJECT_ATTRIBUTES objAttr;
     InitializeObjectAttributes(&objAttr, &directoryPath, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, NULL);
 
@@ -45,7 +43,7 @@ NTSTATUS LoadNetworkInfo(GUID* pNetworkGuid)
     }
 
     UNICODE_STRING filePath;
-    RtlInitUnicodeString(&filePath, NETWORK_INFO_PATH);
+    RtlInitUnicodeString(&filePath, NETSERPENT_NETWORK_INFO_PATH);
 
     OBJECT_ATTRIBUTES objAttr;
     InitializeObjectAttributes(&objAttr, &filePath, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, NULL);
@@ -101,7 +99,7 @@ NTSTATUS SaveNetworkInfo(GUID* pNetworkGuid)
     }
 
     UNICODE_STRING filePath;
-    RtlInitUnicodeString(&filePath, NETWORK_INFO_PATH);
+    RtlInitUnicodeString(&filePath, NETSERPENT_NETWORK_INFO_PATH);
 
     OBJECT_ATTRIBUTES objAttr;
     InitializeObjectAttributes(&objAttr, &filePath, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, NULL);

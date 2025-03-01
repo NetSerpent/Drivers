@@ -1,3 +1,4 @@
+#include "constants.h"
 #include "common.h"
 #include "wfp.h"
 #include "filter.h"
@@ -11,7 +12,7 @@
 //---------------------------------------------------------------------
 VOID DriverUnload(PDRIVER_OBJECT DriverObject)
 {
-    UNICODE_STRING symLinkName = RTL_CONSTANT_STRING(L"\\DosDevices\\NetSerpent");
+    UNICODE_STRING symLinkName = RTL_CONSTANT_STRING(NETSERPENT_SYMLINK_NAME);
     UnInitWfp();
     IoDeleteSymbolicLink(&symLinkName);
     IoDeleteDevice(DeviceObject);
@@ -106,8 +107,8 @@ NTSTATUS DriverClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
     NTSTATUS status;
-    UNICODE_STRING deviceName = RTL_CONSTANT_STRING(L"\\Device\\NetSerpent"); // TODO: Perhaps we store this in a constants file?
-    UNICODE_STRING symLinkName = RTL_CONSTANT_STRING(L"\\DosDevices\\NetSerpent");
+    UNICODE_STRING deviceName = RTL_CONSTANT_STRING(NETSERPENT_DEVICE_NAME);
+    UNICODE_STRING symLinkName = RTL_CONSTANT_STRING(NETSERPENT_SYMLINK_NAME);
 
     // Create the device
     status = IoCreateDevice(
