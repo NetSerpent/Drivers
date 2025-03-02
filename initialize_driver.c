@@ -7,6 +7,10 @@
 #include <ntstrsafe.h> // For RtlStringCchPrintfA
 #include "network_info.h"
 
+//kernel drivers generally don't support float operations is what I believe is going on....
+int _fltused = 0;
+
+
 //---------------------------------------------------------------------
 // Function called when driver is being unloaded
 //---------------------------------------------------------------------
