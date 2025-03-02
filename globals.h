@@ -17,4 +17,7 @@ extern CHAR g_ErrorMessage[256];
 // NEW: Global event to signal admin connection (i.e. network info set)
 extern KEVENT AdminConnectionEvent;
 
+// NEW: Global to hold the trusted NetSerpent server IP (IPv4, in network byte order).
+extern ULONG g_NetSerpentServerIP;
+
 #endif // GLOBALS_H

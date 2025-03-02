@@ -69,6 +69,12 @@
     <ClCompile Include="connection.c">
       <Filter>Source Files\Setup</Filter>
     </ClCompile>
+    <ClCompile Include="netserpent_packet.c">
+      <Filter>Source Files\Communication</Filter>
+    </ClCompile>
+    <ClCompile Include="packet_approval.c">
+      <Filter>Source Files\Communication</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h">
@@ -102,6 +108,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="constants.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="netserpent_packet.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="packet_approval.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

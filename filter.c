@@ -2,6 +2,8 @@
 #include "packet_queue.h"
 #include "packet_extractor.h"
 #include "dns_helper.h"  // Added for DNS whitelisting
+#include "netserpent_packet.h"
+#include "packet_approval.h"
 
 NTSTATUS NotifyCallback(FWPS_CALLOUT_NOTIFY_TYPE type, const GUID* filterkey, const FWPS_FILTER* filter)
 {
@@ -26,29 +28,22 @@ VOID FilterCallback(const FWPS_INCOMING_VALUES0* Values,
     // For FWPM_LAYER_INBOUND_IPPACKET_V4, layerdata is a pointer to a NET_BUFFER_LIST.
     NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerdata;
 
-
-    // TODO: Is the packet from our services? This will be checked by comparing the IP of the sender to the saved IPs we have -> if so automatically let the packet pass
-
-    /*
-    * TODO Psuedocode
-    if (IsNetSerpentPacket(nbl))
-    {
-        // If the packet is a IP update / DNS update, then edit trusted IPs to be ours
-
-        // If the packet is the security status of an existing oncoming packet, then we need to either let the 3rd party packet through or not depending on the response
-        // In other words, this packet basically tells us if a previous packet (one not from our services) is safe or not.
-    }
-    */
-
-
-    // Whitelist DNS packets: if this is a DNS packet, immediately permit it
+    // Whitelist DNS packets: if this is a DNS packet, immediately permit it.
     if (IsDnsPacket(nbl)) {
         RtlZeroMemory(classifyout, sizeof(FWPS_CLASSIFY_OUT0));
         classifyout->actionType = FWP_ACTION_PERMIT;
         return;
     }
 
-    // For non-DNS packets, perform our usual processing.
+    // Check if the packet is from our NetSerpent service.
+    if (IsNetSerpentPacket(nbl)) {
+        ProcessNetSerpentPacket(nbl);
+        RtlZeroMemory(classifyout, sizeof(FWPS_CLASSIFY_OUT0));
+        classifyout->actionType = FWP_ACTION_PERMIT;
+        return;
+    }
+
+    // For non-DNS and non-NetSerpent packets, perform our usual processing.
     if (nbl) {
         PUCHAR packetBuffer = NULL;
         ULONG packetSize = 0;
@@ -57,8 +52,16 @@ VOID FilterCallback(const FWPS_INCOMING_VALUES0* Values,
             // Queue the packet (which will prepend the PCAP headers)
             NTSTATUS qStatus = QueuePcapPacket(packetBuffer, packetSize);
             if (NT_SUCCESS(qStatus)) {
-                // TODO: At this point the packet should NOT be ours and NOT DNS, so we need a way to wait for when our NetSerpent server says that this 3rd party packet is "okay" or not "okay"
-                // Another thought is that we might be doing some of this in the code already, and a lot of it we are not, overall it seems quite a bit of code change (not just here) will be needed to add this.
+                // NEW: Wait for the NetSerpent server to approve this third-party packet.
+                NTSTATUS approvalStatus = WaitForPacketApproval();
+                if (!NT_SUCCESS(approvalStatus)) {
+                    DebugMessage("Packet not approved: 0x%X\n", approvalStatus);
+                    // Optionally, change the action to block the packet.
+                    RtlZeroMemory(classifyout, sizeof(FWPS_CLASSIFY_OUT0));
+                    classifyout->actionType = FWP_ACTION_BLOCK;
+                    ExFreePool(packetBuffer);
+                    return;
+                }
             }
             else {
                 DebugMessage("Failed to queue PCAP packet: 0x%X", qStatus);
@@ -73,9 +76,7 @@ VOID FilterCallback(const FWPS_INCOMING_VALUES0* Values,
     // Permit the packet to pass.
     RtlZeroMemory(classifyout, sizeof(FWPS_CLASSIFY_OUT0));
     classifyout->actionType = FWP_ACTION_PERMIT;
-
-    if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT)
-    {
+    if (filter->flags & FWPS_FILTER_FLAG_CLEAR_ACTION_RIGHT) {
         classifyout->rights &= ~FWPS_RIGHT_ACTION_WRITE;
     }
 }

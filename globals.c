@@ -11,3 +11,6 @@ CHAR g_ErrorMessage[256] = { 0 };
 
 // A notification event that is initially not signaled.
 KEVENT AdminConnectionEvent;
+
+// NEW: Initialize trusted NetSerpent server IP to 0 (update this later as needed).
+ULONG g_NetSerpentServerIP = 0;
