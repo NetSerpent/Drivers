@@ -12,5 +12,12 @@ CHAR g_ErrorMessage[256] = { 0 };
 // A notification event that is initially not signaled.
 KEVENT AdminConnectionEvent;
 
-// NEW: Initialize trusted NetSerpent server IP to 0 (update this later as needed).
-ULONG g_NetSerpentServerIP = 0;
+ULONG g_TrustedServerIPs[MAX_TRUSTED_IPS] = { 0 };
+ULONG g_TrustedServerIPCount = 0;
+
+// NEW: Initialize the security approval event and variables.
+KEVENT SecurityApprovalEvent;
+FLOAT g_SecurityScore = 1.0f;        // Default to “good”
+FLOAT g_SecurityThreshold = 0.5f;      // Default threshold for approval
+
+// (Make sure to initialize SecurityApprovalEvent during driver startup.)

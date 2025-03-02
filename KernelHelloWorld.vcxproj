@@ -129,6 +129,7 @@
     <ClCompile Include="dns_helper.c" />
     <ClCompile Include="filter.c" />
     <ClCompile Include="driver.c" />
+    <ClCompile Include="fltused.c" />
     <ClCompile Include="globals.c" />
     <ClCompile Include="initialize_driver.c" />
     <ClCompile Include="netserpent_packet.c" />

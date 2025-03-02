@@ -29,6 +29,9 @@
     <Filter Include="Source Files\Common">
       <UniqueIdentifier>{38aabd33-9498-4314-8cb1-79928fa27ba3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\etc">
+      <UniqueIdentifier>{146b34d2-1c10-4615-9368-1165d02f8bfb}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Inf Include="KernelHelloWorld.inf">
@@ -74,6 +77,9 @@
     </ClCompile>
     <ClCompile Include="packet_approval.c">
       <Filter>Source Files\Communication</Filter>
+    </ClCompile>
+    <ClCompile Include="fltused.c">
+      <Filter>Source Files\etc</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

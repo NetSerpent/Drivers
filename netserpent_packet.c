@@ -1,6 +1,7 @@
 #include "netserpent_packet.h"
-#include "globals.h"      // For access to g_NetSerpentServerIP and DebugMessage
+#include "globals.h"          // For g_TrustedServerIPs, g_TrustedServerIPCount, g_SecurityScore, and SecurityApprovalEvent
 #include "common.h"
+#include "packet_extractor.h"
 #include <ntddndis.h>
 #include <ndis/nblaccessors.h>
 #include <ndis/nblapi.h>
@@ -20,7 +21,6 @@ static ULONG GetSourceIPAddress(NET_BUFFER_LIST* nbl)
     if (!buffer)
         return 0;
 
-    // Minimal IP header structure
     typedef struct _IP_HEADER {
         UCHAR  VersionAndHeaderLength;
         UCHAR  TypeOfService;
@@ -41,19 +41,125 @@ static ULONG GetSourceIPAddress(NET_BUFFER_LIST* nbl)
 BOOLEAN IsNetSerpentPacket(NET_BUFFER_LIST* nbl)
 {
     ULONG srcIP = GetSourceIPAddress(nbl);
-    // Compare the source IP against our trusted server IP.
-    // TODO: Instead of looking at a single IP, we likely will have a list of trusted IPs, more places than here will need to reflect this change
-    if (srcIP == g_NetSerpentServerIP)
-        return TRUE;
+    // Iterate through the list of trusted server IPs.
+    for (ULONG i = 0; i < g_TrustedServerIPCount; i++) {
+        if (srcIP == g_TrustedServerIPs[i]) {
+            return TRUE;
+        }
+    }
     return FALSE;
+}
+
+// Define a function pointer type for command handlers.
+typedef VOID(*NETSERPENT_CMD_HANDLER)(PUCHAR payload, ULONG payloadSize);
+
+// Command 0x01: Add trusted IP.
+static VOID ProcessAddTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
+{
+    if (payloadSize < sizeof(ULONG)) {
+        DebugMessage("ProcessAddTrustedIPCommand: payload too small\n");
+        return;
+    }
+    ULONG newIP;
+    RtlCopyMemory(&newIP, payload, sizeof(ULONG));
+    BOOLEAN exists = FALSE;
+    for (ULONG i = 0; i < g_TrustedServerIPCount; i++) {
+        if (g_TrustedServerIPs[i] == newIP) {
+            exists = TRUE;
+            break;
+        }
+    }
+    if (!exists) {
+        if (g_TrustedServerIPCount < MAX_TRUSTED_IPS) {
+            g_TrustedServerIPs[g_TrustedServerIPCount++] = newIP;
+            DebugMessage("NetSerpent: Added trusted IP: 0x%08X\n", newIP);
+        }
+        else {
+            DebugMessage("NetSerpent: Trusted IP list full, cannot add 0x%08X\n", newIP);
+        }
+    }
+    else {
+        DebugMessage("NetSerpent: Trusted IP 0x%08X already exists\n", newIP);
+    }
+}
+
+// Command 0x02: Remove trusted IP.
+static VOID ProcessRemoveTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
+{
+    if (payloadSize < sizeof(ULONG)) {
+        DebugMessage("ProcessRemoveTrustedIPCommand: payload too small\n");
+        return;
+    }
+    ULONG removeIP;
+    RtlCopyMemory(&removeIP, payload, sizeof(ULONG));
+    BOOLEAN found = FALSE;
+    for (ULONG i = 0; i < g_TrustedServerIPCount; i++) {
+        if (g_TrustedServerIPs[i] == removeIP) {
+            for (ULONG j = i; j < g_TrustedServerIPCount - 1; j++) {
+                g_TrustedServerIPs[j] = g_TrustedServerIPs[j + 1];
+            }
+            g_TrustedServerIPCount--;
+            found = TRUE;
+            DebugMessage("NetSerpent: Removed trusted IP: 0x%08X\n", removeIP);
+            break;
+        }
+    }
+    if (!found) {
+        DebugMessage("NetSerpent: Trusted IP 0x%08X not found for removal\n", removeIP);
+    }
+}
+
+// Command 0x03: Process security status response.
+static VOID ProcessSecurityStatusCommand(PUCHAR payload, ULONG payloadSize)
+{
+    if (payloadSize < sizeof(FLOAT)) {
+        DebugMessage("ProcessSecurityStatusCommand: payload too small\n");
+        return;
+    }
+    FLOAT score;
+    RtlCopyMemory(&score, payload, sizeof(FLOAT));
+    g_SecurityScore = score;
+    DebugMessage("NetSerpent: Received security score: %f\n", g_SecurityScore);
+    // Signal the security approval event so that pending packets can be processed.
+    KeSetEvent(&SecurityApprovalEvent, IO_NO_INCREMENT, FALSE);
+}
+
+// Global command handler table.
+static NETSERPENT_CMD_HANDLER netserpentCommandHandlers[256] = { 0 };
+static BOOLEAN netserpentCommandHandlersInitialized = FALSE;
+
+static VOID InitializeNetserpentCommandHandlers(void)
+{
+    if (!netserpentCommandHandlersInitialized) {
+        netserpentCommandHandlers[0x01] = ProcessAddTrustedIPCommand;
+        netserpentCommandHandlers[0x02] = ProcessRemoveTrustedIPCommand;
+        netserpentCommandHandlers[0x03] = ProcessSecurityStatusCommand;
+        netserpentCommandHandlersInitialized = TRUE;
+    }
 }
 
 VOID ProcessNetSerpentPacket(NET_BUFFER_LIST* nbl)
 {
-    // For now, simply log that a NetSerpent packet was received.
     DebugMessage("NetSerpent: Received packet from trusted service.\n");
 
-    // TODO: Implement further processing:
-    // - For an IP/DNS update packet, update trusted IPs.
-    // - For a security status response, decide whether to permit or block related packets.
+    PUCHAR packetBuffer = NULL;
+    ULONG packetSize = 0;
+    NTSTATUS status = ExtractPacketFromNbl(nbl, &packetBuffer, &packetSize);
+    if (!NT_SUCCESS(status) || packetSize < 1) {
+        DebugMessage("NetSerpent: Failed to extract payload or payload empty, status: 0x%08X\n", status);
+        return;
+    }
+
+    // The first byte is the command ID.
+    UCHAR command = packetBuffer[0];
+    InitializeNetserpentCommandHandlers();
+
+    if (netserpentCommandHandlers[command] != NULL) {
+        netserpentCommandHandlers[command](packetBuffer + 1, packetSize - 1);
+    }
+    else {
+        DebugMessage("NetSerpent: Unknown command 0x%02X in trusted packet\n", command);
+    }
+
+    ExFreePool(packetBuffer);
 }
