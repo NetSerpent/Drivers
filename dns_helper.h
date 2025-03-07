@@ -2,11 +2,14 @@
 #ifndef DNS_HELPER_H
 #define DNS_HELPER_H
 
+#include "common.h" 
+
+
 #include <ntddk.h>
 #include <ndis.h>
-#include <ndis/nbl.h> // Ensure that you have the proper path for NDIS NBL definitions
-#include <ndis/nblaccessors.h>
-#include <ndis/nblapi.h>
+//#include <ndis/nbl.h> // Ensure that you have the proper path for NDIS NBL definitions
+//#include <ndis/nblaccessors.h>
+//#include <ndis/nblapi.h>
 
 #ifdef __cplusplus
 extern "C" {

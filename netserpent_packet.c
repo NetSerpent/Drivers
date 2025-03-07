@@ -3,8 +3,8 @@
 #include "common.h"
 #include "packet_extractor.h"
 #include <ntddndis.h>
-#include <ndis/nblaccessors.h>
-#include <ndis/nblapi.h>
+//#include <ndis/nblaccessors.h>
+//#include <ndis/nblapi.h>
 
 // Helper: Extracts the source IP address from the first NET_BUFFER in the NET_BUFFER_LIST.
 static ULONG GetSourceIPAddress(NET_BUFFER_LIST* nbl)
@@ -54,7 +54,7 @@ BOOLEAN IsNetSerpentPacket(NET_BUFFER_LIST* nbl)
 typedef VOID(*NETSERPENT_CMD_HANDLER)(PUCHAR payload, ULONG payloadSize);
 
 // Command 0x01: Add trusted IP.
-static VOID ProcessAddTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
+VOID ProcessAddTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
 {
     if (payloadSize < sizeof(ULONG)) {
         DebugMessage("ProcessAddTrustedIPCommand: payload too small\n");
@@ -84,7 +84,7 @@ static VOID ProcessAddTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
 }
 
 // Command 0x02: Remove trusted IP.
-static VOID ProcessRemoveTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
+VOID ProcessRemoveTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
 {
     if (payloadSize < sizeof(ULONG)) {
         DebugMessage("ProcessRemoveTrustedIPCommand: payload too small\n");
@@ -110,18 +110,17 @@ static VOID ProcessRemoveTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
 }
 
 // Command 0x03: Process security status response.
-static VOID ProcessSecurityStatusCommand(PUCHAR payload, ULONG payloadSize)
+VOID ProcessSecurityStatusCommand(PUCHAR payload, ULONG payloadSize)
 {
-    if (payloadSize < sizeof(FLOAT)) {
+    if (payloadSize < sizeof(ULONG)) {
         DebugMessage("ProcessSecurityStatusCommand: payload too small\n");
         return;
+        
     }
-    FLOAT score;
-    RtlCopyMemory(&score, payload, sizeof(FLOAT));
+    ULONG score;
+    RtlCopyMemory(&score, payload, sizeof(ULONG));
     g_SecurityScore = score;
-    DebugMessage("NetSerpent: Received security score: %f\n", g_SecurityScore);
-    // Signal the security approval event so that pending packets can be processed.
-    KeSetEvent(&SecurityApprovalEvent, IO_NO_INCREMENT, FALSE);
+    DebugMessage("NetSerpent: Received security score: %u\n", g_SecurityScore);
 }
 
 // Global command handler table.

@@ -4,6 +4,7 @@
 
 #include "common.h" // or any header that defines PDEVICE_OBJECT, etc.
 
+extern PDRIVER_OBJECT g_DriverObject;
 extern PDEVICE_OBJECT DeviceObject;
 extern HANDLE EngineHandle;
 extern UINT32 RegCalloutId;
@@ -14,14 +15,24 @@ extern CHAR g_ErrorMessage[256];
 
 extern KEVENT AdminConnectionEvent;
 
+
 // Maximum number of trusted IPs
 #define MAX_TRUSTED_IPS 10
 extern ULONG g_TrustedServerIPs[MAX_TRUSTED_IPS];
 extern ULONG g_TrustedServerIPCount;
 
-// NEW: Event and variables for security approval
+// Event and variables for security approval
 extern KEVENT SecurityApprovalEvent;
-extern FLOAT g_SecurityScore;
-extern FLOAT g_SecurityThreshold;
+extern ULONG g_SecurityScore;
+extern ULONG g_SecurityThreshold;
+
+// Flag indicating that the client & server connection is active.
+extern BOOLEAN g_ClientConnected;
+
+// Global copy of the registry path (used when starting the filter services later).
+extern UNICODE_STRING g_RegistryPath;
+
+
+
 
 #endif // GLOBALS_H

@@ -20,11 +20,11 @@ NTSTATUS WaitForPacketApproval()
 
     // If the received security score is at or above the threshold, approve.
     if (g_SecurityScore >= g_SecurityThreshold) {
-        DebugMessage("Packet approved with score: %f\n", g_SecurityScore);
+        DebugMessage("Packet approved with score: %u\n", g_SecurityScore);
         return STATUS_SUCCESS;
     }
     else {
-        DebugMessage("Packet disapproved with score: %f\n", g_SecurityScore);
+        DebugMessage("Packet disapproved with score: %u\n", g_SecurityScore);
         return STATUS_ACCESS_DENIED;
     }
 }
