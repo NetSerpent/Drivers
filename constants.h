@@ -10,6 +10,7 @@
 #define NETSERPENT_NETWORK_DIR          L"\\??\\C:\\NetSerpent"
 #define NETSERPENT_NETWORK_INFO_PATH    L"\\??\\C:\\NetSerpent\\network.info"
 
-// You can add other constants here as needed.
+// Debug constants
+#define VERBOSE 1
 
 #endif // CONSTANTS_H

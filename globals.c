@@ -29,3 +29,5 @@ ULONG g_SecurityThreshold = 0;      // Default threshold for approval
 BOOLEAN g_ClientConnected = FALSE; // Initially not connected to the client
 
 UNICODE_STRING g_RegistryPath = RTL_CONSTANT_STRING(L"");
+
+BOOLEAN g_FilterServiceStarted = FALSE;

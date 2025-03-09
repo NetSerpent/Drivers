@@ -122,6 +122,9 @@ NTSTATUS FilterServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Regis
         return status;
     }
 
+    // Mark that the filter service is now started.
+    g_FilterServiceStarted = TRUE;
+
     DebugMessage("NetSerpent: Filter service startup complete.\n");
     return STATUS_SUCCESS;
 }
@@ -159,22 +162,40 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     ULONG inBufferLength = irpSp->Parameters.DeviceIoControl.InputBufferLength;
     ULONG outBufferLength = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
 
-    DebugMessage("NetSerpent: DeviceIoControlHandler triggered.\n");
+    #if VERBOSE
+        DebugMessage("DeviceIoControlHandler: Received IOCTL: 0x%08X\n", controlCode);
+    #endif
 
     switch (controlCode)
     {
-    case IOCTL_GET_PCAP_PACKET:
+    case IOCTL_PING:
     {
-        DebugMessage("IOCTL_GET_PCAP_PACKET");
-        // BUG FIX: Program crashes when we receive this command in specific at the start
-        /*ULONG bytesCopied = 0;
-        status = DequeuePcapPacket(outBuffer, outBufferLength, &bytesCopied);
-        information = bytesCopied;*/
+        // Let’s assume our ping response is a 32-bit magic number.
+        if (outBufferLength < sizeof(ULONG)) {
+            status = STATUS_BUFFER_TOO_SMALL;
+        }
+        else {
+            *((PULONG)outBuffer) = 0xCAFEBABE;  // arbitrary magic number for “pong”
+            status = STATUS_SUCCESS;
+            information = sizeof(ULONG);
+        }
         break;
     }
+
+
+    case IOCTL_GET_PCAP_PACKET:
+    {
+        if (!g_FilterServiceStarted) { DebugMessage("IOCTL_GET_PCAP_PACKET -> FILTER SERVICE NOT ON"); break; }
+        // BUG FIX: Program crashes when we receive this command in specific at the start
+        ULONG bytesCopied = 0;
+        status = DequeuePcapPacket(outBuffer, outBufferLength, &bytesCopied);
+        information = bytesCopied;
+        break;
+    }
+
+
     case IOCTL_GET_ERROR_MESSAGE:
     {
-        DebugMessage("IOCTL_GET_ERROR_MESSAGE");
         g_ErrorMessage[sizeof(g_ErrorMessage) - 1] = '\0';
         size_t messageLength = strlen(g_ErrorMessage) + 1;
         if (messageLength == 1) {
@@ -193,9 +214,10 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         
         break;
     }
+
+
     case IOCTL_SET_NETWORK_INFO:
     {
-        DebugMessage("IOCTL_SET_NETWORK_INFO");
         if (inBufferLength < sizeof(GUID)) {
             status = STATUS_BUFFER_TOO_SMALL;
             break;
@@ -210,9 +232,10 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         
         break;
     }
+
+
     case IOCTL_SEND_NETSERPENT_COMMAND:
     {
-        DebugMessage("IOCTL_SEND_NETSERPENT_COMMAND");
         if (inBufferLength < 1) {
             status = STATUS_INVALID_PARAMETER;
             break;
@@ -232,6 +255,8 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         
         break;
     }
+
+
     case IOCTL_INFORM_NETWORK_CONNECTED:
     {
         g_ClientConnected = TRUE;
@@ -243,10 +268,12 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         else {
             DebugMessage("NetSerpent: Filter services started.\n");
         }
-        //information = 0;
-        DebugMessage("IOCTL_INFORM_NETWORK_CONNECTED");
+        information = 0;
+        
         break;
     }
+
+
     default:
         // no-op
         break;

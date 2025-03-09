@@ -107,10 +107,10 @@ static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext)
             ctx->InspectCtx.SubInterfaceIndex,
             ctx->InspectCtx.ClonedNbl,
             InjectionCompletionFn,
-            ctx   // Pass the entire combined context
+            ctx   // Pass the entire context to the callback.
         );
         if (NT_SUCCESS(injectStatus)) {
-            // Ownership transferred: InjectionCompletionFn will clean up.
+            // On success the injection callback will clean up.
             return;
         }
         else {
@@ -123,6 +123,7 @@ static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext)
         FwpsFreeCloneNetBufferList(ctx->InspectCtx.ClonedNbl, 0);
     }
 
+    // Cleanup for injection failure or blocked packet:
     IoFreeWorkItem(ctx->WorkItem);
     ExFreePool(ctx);
 }

@@ -32,6 +32,9 @@ extern BOOLEAN g_ClientConnected;
 // Global copy of the registry path (used when starting the filter services later).
 extern UNICODE_STRING g_RegistryPath;
 
+// Flag indicating that the filter service and packet queue are started.
+extern BOOLEAN g_FilterServiceStarted;
+
 
 
 
