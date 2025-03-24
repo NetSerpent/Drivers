@@ -5,10 +5,14 @@
 #include "globals.h"
 #include "packet_queue.h"
 #include <ntstrsafe.h> // For RtlStringCchPrintfA
+
+#include "initialize_driver.h"
+
+// For I/O and networking
 #include "network_info.h"
 #include "netserpent_packet.h"
 #include "async_classify.h"
-#include "initialize_driver.h"
+#include "driver_to_client.h"
 
 
 // kernel drivers generally don't support float operations ...
@@ -19,6 +23,44 @@ NTSTATUS DriverCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 NTSTATUS DriverClose(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp);
 VOID   DriverUnload(PDRIVER_OBJECT DriverObject);
+
+
+/*
+    HELPER FUNCTIONS
+*/
+/// HELPER FUNCTIONS -------------------------------------------
+const char* IoctlCodeToString(ULONG controlCode)
+{
+    switch (controlCode)
+    {
+    case IOCTL_REGISTER_COMMAND_LISTENER:
+        return "IOCTL_REGISTER_COMMAND_LISTENER";
+    case IOCTL_SET_NETWORK_INFO:
+        return "IOCTL_SET_NETWORK_INFO";
+    case IOCTL_PROCESS_SECURITY_RESPONSE:
+        return "IOCTL_PROCESS_SECURITY_RESPONSE";
+    case IOCTL_INFORM_NETWORK_CONNECTED:
+        return "IOCTL_INFORM_NETWORK_CONNECTED";
+    case IOCTL_PING:
+        return "IOCTL_PING";
+    default:
+        return "Unknown IOCTL";
+    }
+}
+
+NTSTATUS InitializePcapBuffer() {
+    // TODO: This value isn't really tested, could be an issue in the future
+    g_RingBufferSize = 1024;
+    g_PcapRingBuffer = ExAllocatePoolWithTag(NonPagedPoolNx, g_RingBufferSize, 'pCap');
+    if (!g_PcapRingBuffer) {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+    KeInitializeEvent(&g_PcapDataAvailableEvent, NotificationEvent, FALSE);
+    return STATUS_SUCCESS;
+}
+
+
+/// SERVICE STARTUP FUNCTIONS -------------------------------------------
 
 /*---------------------------------------------------------------------
   Function called when driver is being unloaded
@@ -59,7 +101,10 @@ NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRIN
             "NetSerpent Error: Failed to create device (0x%08X)", status);
         return status;
     }
+
     DebugMessage("NetSerpent: Created Io Device.\n");
+
+
 
     //
     // *** REGISTER IRP DISPATCH ROUTINES HERE ***
@@ -68,6 +113,7 @@ NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRIN
     DriverObject->MajorFunction[IRP_MJ_CLOSE] = DriverClose;
     DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = DeviceIoControlHandler;
     DriverObject->DriverUnload = DriverUnload;
+
 
     // Create a symbolic link for user mode:  \\.\NetSerpent => \Device\NetSerpent
     status = IoCreateSymbolicLink(&symLinkName, &deviceName);
@@ -98,6 +144,9 @@ NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRIN
 NTSTATUS FilterServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
     NTSTATUS status;
+
+    // Storage where PCAP files are sent to for the user-mode application to read. 
+    InitializePcapBuffer();
 
     // Set up your packet queue as before
     PacketQueueInitialize();
@@ -141,6 +190,7 @@ NTSTATUS DriverCreate(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     return STATUS_SUCCESS;
 }
 
+
 NTSTATUS DriverClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     Irp->IoStatus.Status = STATUS_SUCCESS;
@@ -152,6 +202,33 @@ NTSTATUS DriverClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 /*---------------------------------------------------------------------
   DeviceIoControlHandler
 ---------------------------------------------------------------------*/
+
+
+/// IO MANAGEMENT FUNCTIONS -------------------------------------------
+
+
+//NTSTATUS DriverToClientControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+//{
+//    PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
+//    NTSTATUS status = STATUS_INVALID_DEVICE_REQUEST;
+//    ULONG ioControlCode = stack->Parameters.DeviceIoControl.IoControlCode;
+//
+//    switch (ioControlCode) {
+//    case IOCTL_REGISTER_COMMAND_LISTENER:
+//        status = HandleRegisterCommandListener(DeviceObject, Irp);
+//        break;
+//        // Add cases for other IOCTLs (e.g., IOCTL_GET_ERROR_MESSAGE, etc.)
+//    default:
+//        status = STATUS_INVALID_DEVICE_REQUEST;
+//        Irp->IoStatus.Status = status;
+//        Irp->IoStatus.Information = 0;
+//        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+//        break;
+//    }
+//    return status;
+//}
+
+// USED TO BE NAMED ClientToDriverControl
 NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
@@ -163,7 +240,7 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     ULONG outBufferLength = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
 
     #if VERBOSE
-        DebugMessage("DeviceIoControlHandler: Received IOCTL: 0x%08X\n", controlCode);
+        DebugMessage("DeviceIoControlHandler: Received IOCTL: %s (0x%08X)\n", IoctlCodeToString(controlCode), controlCode);
     #endif
 
     switch (controlCode)
@@ -183,40 +260,8 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     }
 
 
-    case IOCTL_GET_PCAP_PACKET:
-    {
-        if (!g_FilterServiceStarted) { DebugMessage("IOCTL_GET_PCAP_PACKET -> FILTER SERVICE NOT ON"); break; }
-        // BUG FIX: Program crashes when we receive this command in specific at the start
-        ULONG bytesCopied = 0;
-        status = DequeuePcapPacket(outBuffer, outBufferLength, &bytesCopied);
-        information = bytesCopied;
-        break;
-    }
-
-
-    case IOCTL_GET_ERROR_MESSAGE:
-    {
-        g_ErrorMessage[sizeof(g_ErrorMessage) - 1] = '\0';
-        size_t messageLength = strlen(g_ErrorMessage) + 1;
-        if (messageLength == 1) {
-            const char defaultMsg[] = "No error.";
-            RtlCopyMemory(g_ErrorMessage, defaultMsg, sizeof(defaultMsg));
-            messageLength = sizeof(defaultMsg);
-        }
-        if (outBufferLength < messageLength) {
-            status = STATUS_BUFFER_TOO_SMALL;
-        }
-        else {
-            RtlCopyMemory(outBuffer, g_ErrorMessage, messageLength);
-            status = STATUS_SUCCESS;
-            information = (ULONG_PTR)messageLength;
-        }
-        
-        break;
-    }
-
-
-    case IOCTL_SET_NETWORK_INFO:
+    // TODO: Make this a Push change for the client to handle
+    /*case IOCTL_SET_NETWORK_INFO:
     {
         if (inBufferLength < sizeof(GUID)) {
             status = STATUS_BUFFER_TOO_SMALL;
@@ -231,44 +276,55 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         information = sizeof(GUID);
         
         break;
-    }
+    }*/
 
 
-    case IOCTL_SEND_NETSERPENT_COMMAND:
-    {
-        if (inBufferLength < 1) {
-            status = STATUS_INVALID_PARAMETER;
-            break;
-        }
-        UCHAR* cmdBuffer = (UCHAR*)Irp->AssociatedIrp.SystemBuffer;
-        UCHAR command = cmdBuffer[0];
-        switch (command) {
-        case 0x03: // Security status response
-            ProcessSecurityStatusCommand(cmdBuffer + 1, inBufferLength - 1);
-            status = STATUS_SUCCESS;
-            information = inBufferLength;
-            break;
-        default:
-            status = STATUS_INVALID_DEVICE_REQUEST;
-            break;
-        }
-        
+    // BIGGER TODO: This should just happen as we get a packet from our server, we don't need a IOCTL input to do this
+    // TODO: Reformat this, security packets don't use the 0x# format
+    //       Only packets sent from the kernel driver to the rust client use the 0x## format (RUST_PACKET_SECURITY_CHECK_CODE would resolve to 0x3)
+    //case IOCTL_PROCESS_SECURITY_RESPONSE:
+    //{
+    //    if (inBufferLength < 1) {
+    //        status = STATUS_INVALID_PARAMETER;
+    //        break;
+    //    }
+    //    UCHAR* cmdBuffer = (UCHAR*)Irp->AssociatedIrp.SystemBuffer;
+    //    UCHAR command = cmdBuffer[0];
+    //    switch (command) {
+    //    case RUST_PACKET_SECURITY_CHECK_CODE: // Security status response
+    //        ProcessSecurityStatusCommand(cmdBuffer + 1, inBufferLength - 1);
+    //        status = STATUS_SUCCESS;
+    //        information = inBufferLength;
+    //        break;
+    //    default:
+    //        status = STATUS_INVALID_DEVICE_REQUEST;
+    //        break;
+    //    }
+    //    
+    //    break;
+    //}
+    case IOCTL_REGISTER_COMMAND_LISTENER:  // 0x800
+        // This is crucial for queuing the IRP
+        status = HandleRegisterCommandListener(DeviceObject, Irp);
         break;
-    }
 
 
     case IOCTL_INFORM_NETWORK_CONNECTED:
     {
-        g_ClientConnected = TRUE;
-        // Now start the filtering services.
-        status = FilterServiceStartup(g_DriverObject, &g_RegistryPath);
-        if (!NT_SUCCESS(status)) {
-            DebugMessage("NetSerpent: Failed to start filter services: 0x%08X\n", status);
-        }
-        else {
-            DebugMessage("NetSerpent: Filter services started.\n");
-        }
+        ////g_ClientConnected = TRUE;
+        //// Now start the filtering services.
+        //status = FilterServiceStartup(g_DriverObject, &g_RegistryPath);
+        //if (!NT_SUCCESS(status)) {
+        //    DebugMessage("NetSerpent: Failed to start filter services: 0x%08X\n", status);
+        //}
+        //else {
+        //    DebugMessage("NetSerpent: Filter services started.\n");
+        //}
+        DebugMessage("SENDING TEST COMMAND\n");
+        status = SendClientCommand(RUST_PACKET_TEST_CODE, NULL, 0);
+        status = STATUS_SUCCESS;
         information = 0;
+
         
         break;
     }
@@ -284,3 +340,33 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return status;
 }
+
+
+//NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+//{
+//    PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
+//    ULONG ioControlCode = stack->Parameters.DeviceIoControl.IoControlCode;
+//    NTSTATUS status = STATUS_INVALID_DEVICE_REQUEST;
+//
+//    switch (ioControlCode) {
+//        // Client-to-driver commands
+//    case IOCTL_SET_NETWORK_INFO:
+//    case IOCTL_PROCESS_SECURITY_RESPONSE:
+//        status = ClientToDriverControl(DeviceObject, Irp);
+//        break;
+//
+//        // For push events, register the IRP.
+//    case IOCTL_REGISTER_COMMAND_LISTENER:
+//        status = HandleRegisterCommandListener(DeviceObject, Irp);
+//        break;
+//
+//
+//    default:
+//        status = STATUS_INVALID_DEVICE_REQUEST;
+//        Irp->IoStatus.Status = status;
+//        Irp->IoStatus.Information = 0;
+//        IoCompleteRequest(Irp, IO_NO_INCREMENT);
+//        break;
+//    }
+//    return status;
+//}

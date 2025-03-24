@@ -6,7 +6,8 @@
 //#include <ndis/nblaccessors.h>
 //#include <ndis/nblapi.h>
 
-// Helper: Extracts the source IP address from the first NET_BUFFER in the NET_BUFFER_LIST.
+/// HELPER FUNCTIONS -----------------------------------------------
+
 static ULONG GetSourceIPAddress(NET_BUFFER_LIST* nbl)
 {
     if (!nbl)
@@ -38,6 +39,7 @@ static ULONG GetSourceIPAddress(NET_BUFFER_LIST* nbl)
     return ipHeader->SourceAddress;
 }
 
+
 BOOLEAN IsNetSerpentPacket(NET_BUFFER_LIST* nbl)
 {
     ULONG srcIP = GetSourceIPAddress(nbl);
@@ -50,8 +52,10 @@ BOOLEAN IsNetSerpentPacket(NET_BUFFER_LIST* nbl)
     return FALSE;
 }
 
-// Define a function pointer type for command handlers.
-typedef VOID(*NETSERPENT_CMD_HANDLER)(PUCHAR payload, ULONG payloadSize);
+
+
+
+/// FUNCTIONS FOR PROCESSING PACKETS THAT COME FROM NETSERPENT SERVERS -----------------------------------------------
 
 // Command 0x01: Add trusted IP.
 VOID ProcessAddTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
@@ -83,6 +87,7 @@ VOID ProcessAddTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
     }
 }
 
+
 // Command 0x02: Remove trusted IP.
 VOID ProcessRemoveTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
 {
@@ -109,7 +114,9 @@ VOID ProcessRemoveTrustedIPCommand(PUCHAR payload, ULONG payloadSize)
     }
 }
 
+
 // Command 0x03: Process security status response.
+// TODO: Make this process the score, then reinject the traffic if it passes
 VOID ProcessSecurityStatusCommand(PUCHAR payload, ULONG payloadSize)
 {
     if (payloadSize < sizeof(ULONG)) {
@@ -123,9 +130,14 @@ VOID ProcessSecurityStatusCommand(PUCHAR payload, ULONG payloadSize)
     DebugMessage("NetSerpent: Received security score: %u\n", g_SecurityScore);
 }
 
-// Global command handler table.
+
+
+/// CLIENT TO DRIVER INITIALIZATION -----------------------------------------------
+
+typedef VOID(*NETSERPENT_CMD_HANDLER)(PUCHAR payload, ULONG payloadSize);
 static NETSERPENT_CMD_HANDLER netserpentCommandHandlers[256] = { 0 };
 static BOOLEAN netserpentCommandHandlersInitialized = FALSE;
+
 
 static VOID InitializeNetserpentCommandHandlers(void)
 {
@@ -136,6 +148,7 @@ static VOID InitializeNetserpentCommandHandlers(void)
         netserpentCommandHandlersInitialized = TRUE;
     }
 }
+
 
 VOID ProcessNetSerpentPacket(NET_BUFFER_LIST* nbl)
 {

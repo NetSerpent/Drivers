@@ -35,6 +35,24 @@ extern UNICODE_STRING g_RegistryPath;
 // Flag indicating that the filter service and packet queue are started.
 extern BOOLEAN g_FilterServiceStarted;
 
+#include <wdm.h>  // for LIST_ENTRY, KSPIN_LOCK
+
+extern LIST_ENTRY g_PushIrpQueue;
+extern KSPIN_LOCK g_PushIrpQueueLock;
+
+extern PVOID g_PcapRingBuffer;             // Circular buffer for PCAP packets.
+extern ULONG g_RingBufferSize;             // Total size of the ring buffer.
+extern KEVENT g_PcapDataAvailableEvent;    // Event to signal data availability.
+extern ULONG g_RingBufferWriteIndex;       // Write index into the ring buffer.
+extern ULONG g_RingBufferReadIndex;        // Read index (for user-mode consumption).
+extern KSPIN_LOCK g_RingBufferLock;        // Lock for ring buffer access.
+
+extern PVOID g_CommandRingBuffer;             // Ring buffer for command packets.
+extern ULONG g_CommandRingBufferSize;         // Total size of the command ring buffer.
+extern ULONG g_CommandRingBufferWriteIndex;   // Write index for the command ring buffer.
+extern ULONG g_CommandRingBufferReadIndex;    // Read index (for user-mode consumption).
+extern KSPIN_LOCK g_CommandRingBufferLock;      // Lock for command ring buffer access.
+extern KEVENT g_CommandDataAvailableEvent;      // Event to signal that a new command is available.
 
 
 

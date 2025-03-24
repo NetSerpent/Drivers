@@ -78,6 +78,9 @@
     <ClCompile Include="async_classify.c">
       <Filter>Source Files\Filter Functions</Filter>
     </ClCompile>
+    <ClCompile Include="driver_to_client.c">
+      <Filter>Source Files\Communication</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="common.h">
@@ -120,6 +123,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="async_classify.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="driver_to_client.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

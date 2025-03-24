@@ -1,6 +1,8 @@
 // async_classify.c
 #include "globals.h"
 #include "packet_approval.h"
+#include "driver_to_client.h"  // for PushCommandPacket
+#include "packet_extractor.h"
 
 HANDLE g_InjectionHandle = NULL;
 
@@ -11,10 +13,12 @@ typedef struct _ASYNC_INSPECT_CONTEXT {
     UINT16            LayerId;
 } ASYNC_INSPECT_CONTEXT, * PASYNC_INSPECT_CONTEXT;
 
+
 typedef struct _ASYNC_WORK_ITEM_CONTEXT {
     PIO_WORKITEM WorkItem;
     ASYNC_INSPECT_CONTEXT InspectCtx;
 } ASYNC_WORK_ITEM_CONTEXT, * PASYNC_WORK_ITEM_CONTEXT;
+
 
 NTSTATUS InitializeInjectionHandle()
 {
@@ -25,6 +29,7 @@ NTSTATUS InitializeInjectionHandle()
     );
 }
 
+
 VOID CleanupInjectionHandle()
 {
     if (g_InjectionHandle)
@@ -34,12 +39,25 @@ VOID CleanupInjectionHandle()
     }
 }
 
+
+// Forward declarations for our new helper functions.
+ULONG BuildPcapPacket(NET_BUFFER_LIST* nbl, UCHAR* buffer, ULONG bufferSize);
+
 static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext);
 static VOID NTAPI InjectionCompletionFn(
     _In_ VOID* context,
     _Inout_ NET_BUFFER_LIST* netBufferList,
     _In_ BOOLEAN dispatchLevel
 );
+
+
+static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext);
+static VOID NTAPI InjectionCompletionFn(
+    _In_ VOID* context,
+    _Inout_ NET_BUFFER_LIST* netBufferList,
+    _In_ BOOLEAN dispatchLevel
+);
+
 
 VOID AsyncBlockAndQueuePacket(
     const FWPS_INCOMING_VALUES0* inFixedValues,
@@ -92,41 +110,40 @@ VOID AsyncBlockAndQueuePacket(
     IoQueueWorkItem(ctx->WorkItem, (PIO_WORKITEM_ROUTINE)AsyncInspectionWorker, DelayedWorkQueue, ctx);
 }
 
+
 static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext)
 {
     PASYNC_WORK_ITEM_CONTEXT ctx = (PASYNC_WORK_ITEM_CONTEXT)StartContext;
     NTSTATUS approvalStatus = WaitForPacketApproval();
 
-    if (approvalStatus == STATUS_SUCCESS) {
-        NTSTATUS injectStatus = FwpsInjectNetworkReceiveAsync0(
-            g_InjectionHandle,
-            NULL,
-            0,
-            ctx->InspectCtx.LayerId,
-            ctx->InspectCtx.InterfaceIndex,
-            ctx->InspectCtx.SubInterfaceIndex,
-            ctx->InspectCtx.ClonedNbl,
-            InjectionCompletionFn,
-            ctx   // Pass the entire context to the callback.
-        );
-        if (NT_SUCCESS(injectStatus)) {
-            // On success the injection callback will clean up.
-            return;
+    if (NT_SUCCESS(approvalStatus)) {
+        // Format the PCAP packet here (build a PCAP header, etc.)
+        UCHAR pcapPacket[1024] = { 0 };
+        // TODO : You would implement this to format the NET_BUFFER_LIST into a proper PCAP packet.
+        ULONG pcapSize = BuildPcapPacket(ctx->InspectCtx.ClonedNbl, pcapPacket, sizeof(pcapPacket));
+
+        // Write the packet to the ring buffer (implement WriteToRingBuffer to handle wrapping, etc.)
+        // TODO: This function writes data into the ring buffer while handling wrap-around. It should return a status code indicating success or failure.
+        NTSTATUS writeStatus = WriteToRingBuffer(g_PcapRingBuffer, g_RingBufferSize, pcapPacket, pcapSize);
+        if (NT_SUCCESS(writeStatus)) {
+            // Signal the event to notify the user-mode client
+            KeSetEvent(&g_PcapDataAvailableEvent, IO_NO_INCREMENT, FALSE);
+            DebugMessage("AsyncInspectionWorker: PCAP packet written and event signaled.\n");
         }
         else {
-            DebugMessage("AsyncInspectionWorker: Injection failed: 0x%08X\n", injectStatus);
-            FwpsFreeCloneNetBufferList(ctx->InspectCtx.ClonedNbl, 0);
+            DebugMessage("AsyncInspectionWorker: Failed to write PCAP packet to ring buffer.\n");
         }
     }
     else {
-        DebugMessage("AsyncInspectionWorker: Packet blocked.\n");
-        FwpsFreeCloneNetBufferList(ctx->InspectCtx.ClonedNbl, 0);
+        DebugMessage("AsyncInspectionWorker: Packet blocked (approval status: 0x%08X)\n", approvalStatus);
     }
 
-    // Cleanup for injection failure or blocked packet:
+    // Clean up
+    FwpsFreeCloneNetBufferList(ctx->InspectCtx.ClonedNbl, 0);
     IoFreeWorkItem(ctx->WorkItem);
     ExFreePool(ctx);
 }
+
 
 static VOID NTAPI InjectionCompletionFn(
     _In_ VOID* context,
@@ -139,3 +156,51 @@ static VOID NTAPI InjectionCompletionFn(
     IoFreeWorkItem(ctx->WorkItem);
     ExFreePool(ctx);
 }
+
+
+
+// BuildPcapPacket
+// Converts the NET_BUFFER_LIST to a PCAP record (header + packet data)
+//------------------------------------------------------------------------------
+ULONG BuildPcapPacket(NET_BUFFER_LIST * nbl, UCHAR * buffer, ULONG bufferSize)
+{
+    // Define the PCAP record header structure.
+    typedef struct _pcaprec_hdr_t {
+        ULONG ts_sec;    // Timestamp seconds
+        ULONG ts_usec;   // Timestamp microseconds
+        ULONG incl_len;  // Number of octets saved in file
+        ULONG orig_len;  // Actual length of packet
+    } pcaprec_hdr_t;
+
+    PUCHAR packetData = NULL;
+    ULONG packetDataLength = 0;
+    NTSTATUS status = ExtractPacketFromNbl(nbl, &packetData, &packetDataLength);
+    if (!NT_SUCCESS(status) || packetDataLength == 0) {
+        return 0;
+    }
+
+    ULONG requiredSize = sizeof(pcaprec_hdr_t) + packetDataLength;
+    if (requiredSize > bufferSize) {
+        ExFreePool(packetData);
+        return 0;
+    }
+
+    // Get system time for timestamp.
+    LARGE_INTEGER systemTime;
+    KeQuerySystemTime(&systemTime);
+    ULONG ts_sec = (ULONG)(systemTime.QuadPart / 10000000ULL);
+    ULONG ts_usec = (ULONG)((systemTime.QuadPart % 10000000ULL) / 10ULL);
+
+    pcaprec_hdr_t* header = (pcaprec_hdr_t*)buffer;
+    header->ts_sec = ts_sec;
+    header->ts_usec = ts_usec;
+    header->incl_len = packetDataLength;
+    header->orig_len = packetDataLength;
+
+    // Copy the packet data immediately following the header.
+    RtlCopyMemory(buffer + sizeof(pcaprec_hdr_t), packetData, packetDataLength);
+    ExFreePool(packetData);
+    return requiredSize;
+}
+
+

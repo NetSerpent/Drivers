@@ -130,6 +130,7 @@
     <ClCompile Include="common.c" />
     <ClCompile Include="connection.c" />
     <ClCompile Include="dns_helper.c" />
+    <ClCompile Include="driver_to_client.c" />
     <ClCompile Include="filter.c" />
     <ClCompile Include="driver.c" />
     <ClCompile Include="globals.c" />
@@ -147,6 +148,7 @@
     <ClInclude Include="connection.h" />
     <ClInclude Include="constants.h" />
     <ClInclude Include="dns_helper.h" />
+    <ClInclude Include="driver_to_client.h" />
     <ClInclude Include="filter.h" />
     <ClInclude Include="globals.h" />
     <ClInclude Include="initialize_driver.h" />
