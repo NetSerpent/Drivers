@@ -1,6 +1,23 @@
 #pragma once
 #include "common.h"
-NTSTATUS HandleRegisterCommandListener(PDEVICE_OBJECT DeviceObject, PIRP Irp);
-NTSTATUS PushCommandPacket(UCHAR* packet, ULONG packetSize);
+
+typedef struct ClientCommandLinkedListEntry {
+    // Command code
+    UCHAR commandCode;
+
+    // Work state (0x0 : untouched) (0x1 : touched) (0x2 : finished)
+    UCHAR workState;
+
+    // Buffer for data
+    UCHAR data[64];
+
+    // Pointer to the next command in the list
+    struct ClientCommandLinkedListEntry* next;
+
+    // Pointer to the previous command in the list
+    struct ClientCommandLinkedListEntry* before;
+
+} ClientCommandLinkedListEntry;
+
+ClientCommandLinkedListEntry* GetClientCommandListHandle();
 NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize);
-NTSTATUS WriteToRingBuffer(PVOID ringBuffer, ULONG ringBufferSize, UCHAR* data, ULONG dataSize);

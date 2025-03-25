@@ -18,12 +18,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
     DebugMessage("NetSerpent: Starting\n");
     // Store the driver object globally.
     g_DriverObject = DriverObject;
-
-    // Initialize the global push IRP queue and its spin lock.
-    InitializeListHead(&g_PushIrpQueue);
-    KeInitializeSpinLock(&g_PushIrpQueueLock);
     
-
     // Open Kernel to client communication
     NTSTATUS status = CommunicationServiceStartup(DriverObject, RegistryPath);
     if (!NT_SUCCESS(status)) return status;

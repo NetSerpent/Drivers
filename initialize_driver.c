@@ -48,18 +48,6 @@ const char* IoctlCodeToString(ULONG controlCode)
     }
 }
 
-NTSTATUS InitializePcapBuffer() {
-    // TODO: This value isn't really tested, could be an issue in the future
-    g_RingBufferSize = 1024;
-    g_PcapRingBuffer = ExAllocatePoolWithTag(NonPagedPoolNx, g_RingBufferSize, 'pCap');
-    if (!g_PcapRingBuffer) {
-        return STATUS_INSUFFICIENT_RESOURCES;
-    }
-    KeInitializeEvent(&g_PcapDataAvailableEvent, NotificationEvent, FALSE);
-    return STATUS_SUCCESS;
-}
-
-
 /// SERVICE STARTUP FUNCTIONS -------------------------------------------
 
 /*---------------------------------------------------------------------
@@ -144,9 +132,6 @@ NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRIN
 NTSTATUS FilterServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
     NTSTATUS status;
-
-    // Storage where PCAP files are sent to for the user-mode application to read. 
-    InitializePcapBuffer();
 
     // Set up your packet queue as before
     PacketQueueInitialize();
@@ -303,9 +288,12 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     //    
     //    break;
     //}
+
+    // TODO: Replace this with returning a handle of our last entry in the linked list
     case IOCTL_REGISTER_COMMAND_LISTENER:  // 0x800
         // This is crucial for queuing the IRP
-        status = HandleRegisterCommandListener(DeviceObject, Irp);
+        DebugMessage("POINTER TO LAST COMMAND LIST ENTRY : %p", GetClientCommandListHandle());
+        status = STATUS_SUCCESS;
         break;
 
 

@@ -1,7 +1,7 @@
 // async_classify.c
 #include "globals.h"
 #include "packet_approval.h"
-#include "driver_to_client.h"  // for PushCommandPacket
+#include "driver_to_client.h"  // now used for SendClientCommand
 #include "packet_extractor.h"
 
 HANDLE g_InjectionHandle = NULL;
@@ -13,12 +13,10 @@ typedef struct _ASYNC_INSPECT_CONTEXT {
     UINT16            LayerId;
 } ASYNC_INSPECT_CONTEXT, * PASYNC_INSPECT_CONTEXT;
 
-
 typedef struct _ASYNC_WORK_ITEM_CONTEXT {
     PIO_WORKITEM WorkItem;
     ASYNC_INSPECT_CONTEXT InspectCtx;
 } ASYNC_WORK_ITEM_CONTEXT, * PASYNC_WORK_ITEM_CONTEXT;
-
 
 NTSTATUS InitializeInjectionHandle()
 {
@@ -29,7 +27,6 @@ NTSTATUS InitializeInjectionHandle()
     );
 }
 
-
 VOID CleanupInjectionHandle()
 {
     if (g_InjectionHandle)
@@ -39,8 +36,7 @@ VOID CleanupInjectionHandle()
     }
 }
 
-
-// Forward declarations for our new helper functions.
+// Forward declaration for our helper function.
 ULONG BuildPcapPacket(NET_BUFFER_LIST* nbl, UCHAR* buffer, ULONG bufferSize);
 
 static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext);
@@ -50,15 +46,9 @@ static VOID NTAPI InjectionCompletionFn(
     _In_ BOOLEAN dispatchLevel
 );
 
-
-static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext);
-static VOID NTAPI InjectionCompletionFn(
-    _In_ VOID* context,
-    _Inout_ NET_BUFFER_LIST* netBufferList,
-    _In_ BOOLEAN dispatchLevel
-);
-
-
+//
+// New version of AsyncBlockAndQueuePacket that uses the linked-list client command system
+//
 VOID AsyncBlockAndQueuePacket(
     const FWPS_INCOMING_VALUES0* inFixedValues,
     const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
@@ -69,6 +59,7 @@ VOID AsyncBlockAndQueuePacket(
     NTSTATUS status;
     NET_BUFFER_LIST* clonedNbl = NULL;
 
+    // Clone the NET_BUFFER_LIST so we can hold onto the packet data
     status = FwpsAllocateCloneNetBufferList0(
         nbl,
         NULL,
@@ -87,29 +78,31 @@ VOID AsyncBlockAndQueuePacket(
         subIfIndex = inFixedValues->incomingValue[FWPS_FIELD_INBOUND_IPPACKET_V4_SUB_INTERFACE_INDEX].value.uint32;
     }
 
+    // Allocate context for the asynchronous work item.
     PASYNC_WORK_ITEM_CONTEXT ctx = ExAllocatePoolZero(NonPagedPoolNx, sizeof(*ctx), 'wCtx');
     if (!ctx) {
-        DebugMessage("Failed to allocate combined work item context\n");
+        DebugMessage("AsyncBlockAndQueuePacket: Failed to allocate work item context\n");
         FwpsFreeCloneNetBufferList(clonedNbl, 0);
         return;
     }
 
     ctx->WorkItem = IoAllocateWorkItem(DeviceObject);
     if (!ctx->WorkItem) {
-        DebugMessage("Failed to allocate work item\n");
+        DebugMessage("AsyncBlockAndQueuePacket: Failed to allocate work item\n");
         ExFreePool(ctx);
         FwpsFreeCloneNetBufferList(clonedNbl, 0);
         return;
     }
 
+    // Save the cloned NET_BUFFER_LIST and interface indexes into the context.
     ctx->InspectCtx.ClonedNbl = clonedNbl;
     ctx->InspectCtx.InterfaceIndex = ifIndex;
     ctx->InspectCtx.SubInterfaceIndex = subIfIndex;
     ctx->InspectCtx.LayerId = inFixedValues->layerId;
 
+    // Queue the work item.
     IoQueueWorkItem(ctx->WorkItem, (PIO_WORKITEM_ROUTINE)AsyncInspectionWorker, DelayedWorkQueue, ctx);
 }
-
 
 static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext)
 {
@@ -117,21 +110,17 @@ static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext)
     NTSTATUS approvalStatus = WaitForPacketApproval();
 
     if (NT_SUCCESS(approvalStatus)) {
-        // Format the PCAP packet here (build a PCAP header, etc.)
+        // Format the packet into a PCAP record.
         UCHAR pcapPacket[1024] = { 0 };
-        // TODO : You would implement this to format the NET_BUFFER_LIST into a proper PCAP packet.
         ULONG pcapSize = BuildPcapPacket(ctx->InspectCtx.ClonedNbl, pcapPacket, sizeof(pcapPacket));
 
-        // Write the packet to the ring buffer (implement WriteToRingBuffer to handle wrapping, etc.)
-        // TODO: This function writes data into the ring buffer while handling wrap-around. It should return a status code indicating success or failure.
-        NTSTATUS writeStatus = WriteToRingBuffer(g_PcapRingBuffer, g_RingBufferSize, pcapPacket, pcapSize);
-        if (NT_SUCCESS(writeStatus)) {
-            // Signal the event to notify the user-mode client
-            KeSetEvent(&g_PcapDataAvailableEvent, IO_NO_INCREMENT, FALSE);
-            DebugMessage("AsyncInspectionWorker: PCAP packet written and event signaled.\n");
+        // (Here we use RUST_PACKET_TEST_CODE as an example command code.)
+        NTSTATUS sendStatus = SendClientCommand(RUST_PACKET_SECURITY_CHECK_CODE, pcapPacket, pcapSize);
+        if (NT_SUCCESS(sendStatus)) {
+            DebugMessage("AsyncInspectionWorker: Client command sent successfully.\n");
         }
         else {
-            DebugMessage("AsyncInspectionWorker: Failed to write PCAP packet to ring buffer.\n");
+            DebugMessage("AsyncInspectionWorker: Failed to send client command, status: 0x%08X\n", sendStatus);
         }
     }
     else {
@@ -143,7 +132,6 @@ static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext)
     IoFreeWorkItem(ctx->WorkItem);
     ExFreePool(ctx);
 }
-
 
 static VOID NTAPI InjectionCompletionFn(
     _In_ VOID* context,

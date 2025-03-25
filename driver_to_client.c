@@ -1,97 +1,97 @@
 ﻿#include "driver_to_client.h"
 #include "globals.h"
+#include "driver_to_client.h"
 #include <wdm.h>
 
 
 /// GENERAL FUNCTIONS FOR PACKET SENDING TO CLIENT -----------------------
 
-//------------------------------------------------------------------------------
-// WriteToRingBuffer
-// Writes the provided data into the circular ring buffer while handling wrap-around.
-//------------------------------------------------------------------------------
-NTSTATUS WriteToRingBuffer(PVOID ringBuffer, ULONG ringBufferSize, UCHAR* data, ULONG dataSize)
+// --------------------------------------------------------------------
+// Global pointer to the last entry in our doubly-linked command list.
+// If NULL, the list is empty. 
+// --------------------------------------------------------------------
+ClientCommandLinkedListEntry* g_LastCommandEntry = NULL;
+
+// --------------------------------------------------------------------
+// Adds a new entry to the tail of the doubly-linked list. 
+// If the list is empty, the new entry becomes the first/only element.
+// --------------------------------------------------------------------
+VOID AddClientCommand(ClientCommandLinkedListEntry* newEntry)
 {
-    if (dataSize > ringBufferSize) {
-        return STATUS_BUFFER_TOO_SMALL;
+    // If there's no tail yet, the list is empty
+    if (g_LastCommandEntry == NULL)
+    {
+        // This is the first entry
+        g_LastCommandEntry = newEntry;
+        newEntry->before = NULL;
+        newEntry->next = NULL;
     }
+    else
+    {
+        // Link the new entry after the old tail
+        g_LastCommandEntry->next = newEntry;
+        newEntry->before = g_LastCommandEntry;
+        newEntry->next = NULL;
 
-    KIRQL oldIrql;
-    KeAcquireSpinLock(&g_RingBufferLock, &oldIrql);
-    ULONG writeIndex = g_RingBufferWriteIndex;
-
-    if (writeIndex + dataSize <= ringBufferSize) {
-        RtlCopyMemory((PUCHAR)ringBuffer + writeIndex, data, dataSize);
-        g_RingBufferWriteIndex = (writeIndex + dataSize) % ringBufferSize;
+        // Update the "last" pointer
+        g_LastCommandEntry = newEntry;
     }
-    else {
-        ULONG firstPart = ringBufferSize - writeIndex;
-        RtlCopyMemory((PUCHAR)ringBuffer + writeIndex, data, firstPart);
-        RtlCopyMemory((PUCHAR)ringBuffer, data + firstPart, dataSize - firstPart);
-        g_RingBufferWriteIndex = dataSize - firstPart;
-    }
-    KeReleaseSpinLock(&g_RingBufferLock, oldIrql);
-    return STATUS_SUCCESS;
 }
 
-/// New centralized command sending function.
-/// This builds a packet with the first byte as the command code, followed by any payload,
-/// then calls PushCommandPacket() to deliver it to the user-mode client.
+
 NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize)
 {
-    DebugMessage("Sending command to the client via ring buffer!\n");
+    DebugMessage("SendClientCommand: Creating a new command entry.\n");
 
-    // Calculate the total size of our command packet.
-    // (For simplicity, we use a 1-byte command code followed by the payload.)
-    ULONG packetSize = 1 + payloadSize;
-
-    // Allocate temporary storage for the command packet.
-    UCHAR* commandPacket = ExAllocatePoolWithTag(NonPagedPoolNx, packetSize, 'cmdP');
-    if (!commandPacket) {
-        DebugMessage("SendClientCommand: Failed to allocate memory for command packet.\n");
+    // Allocate a new doubly-linked command node
+    ClientCommandLinkedListEntry* newEntry =
+        (ClientCommandLinkedListEntry*)ExAllocatePoolZero(
+            NonPagedPoolNx,
+            sizeof(ClientCommandLinkedListEntry),
+            'cmdP'
+        );
+    if (!newEntry)
+    {
+        DebugMessage("SendClientCommand: Failed to allocate newEntry.\n");
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    // Set the command code.
-    commandPacket[0] = commandCode;
+    // Initialize the fields
+    newEntry->commandCode = commandCode;
+    newEntry->workState = 0; // Untouched
 
-    // Copy payload if provided.
-    if (payloadSize > 0 && payload) {
-        RtlCopyMemory(commandPacket + 1, payload, payloadSize);
+    // Copy up to 64 bytes of the payload
+    // TODO: How should we handle this edge case other than clipping?
+    ULONG copyLength = (payloadSize > sizeof(newEntry->data))
+        ? sizeof(newEntry->data)
+        : payloadSize;
+    if (payload && copyLength > 0)
+    {
+        RtlCopyMemory(newEntry->data, payload, copyLength);
     }
 
-    // Write the command packet into the command ring buffer.
-    NTSTATUS status = WriteToRingBuffer(g_CommandRingBuffer, g_CommandRingBufferSize, commandPacket, packetSize);
-    if (NT_SUCCESS(status)) {
-        // Signal the event to notify the user-mode client that a command is available.
-        KeSetEvent(&g_CommandDataAvailableEvent, IO_NO_INCREMENT, FALSE);
-        DebugMessage("SendClientCommand: Successfully queued command 0x%02X via ring buffer.\n", commandCode);
-    }
-    else {
-        DebugMessage("SendClientCommand: Failed to write command packet to ring buffer, status: 0x%08X\n", status);
-    }
+    // Insert the new node at the end of our list
+    AddClientCommand(newEntry);
 
-    ExFreePool(commandPacket);
-    return status;
+    DebugMessage(
+        "SendClientCommand: Appended command 0x%02X to the list. (WorkState=%u)\n",
+        commandCode,
+        newEntry->workState
+    );
+
+    // In a real driver, you might signal an event here 
+    // so the client side knows a new command is ready.
+
+    return STATUS_SUCCESS;
 }
-
 
 
 
 /// FUNCTIONS FOR SENDING INDIVIDUAL COMMANDS TO THE RUST CLIENT ------------------------
 
 // This function is now used to register a push IRP.
-NTSTATUS HandleRegisterCommandListener(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+ClientCommandLinkedListEntry* GetClientCommandListHandle()
 {
-    // Mark the IRP pending.
-    IoMarkIrpPending(Irp);
-
-    // Insert the IRP into the global push queue.
-    KIRQL oldIrql;
-    KeAcquireSpinLock(&g_PushIrpQueueLock, &oldIrql);
-    InsertTailList(&g_PushIrpQueue, &Irp->Tail.Overlay.ListEntry);
-    KeReleaseSpinLock(&g_PushIrpQueueLock, oldIrql);
-
-    // Do not complete it now. It will be completed when a push event occurs.
-    return STATUS_PENDING;
+    return g_LastCommandEntry;
 }
 
