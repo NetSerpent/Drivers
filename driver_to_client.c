@@ -3,6 +3,10 @@
 #include "driver_to_client.h"
 #include <wdm.h>
 
+// Max number of commands in our stack allowed
+#define MAX_CLIENT_COMMAND_COUNT 1024
+volatile LONG g_ClientCommandCount = 0;
+
 
 /// GENERAL FUNCTIONS FOR PACKET SENDING TO CLIENT -----------------------
 
@@ -18,6 +22,15 @@ ClientCommandLinkedListEntry* g_LastCommandEntry = NULL;
 // --------------------------------------------------------------------
 VOID AddClientCommand(ClientCommandLinkedListEntry* newEntry)
 {
+    // TODO: Probably in the future we will want to ask the client to increase the number of workers if we get close to being full
+    // Check if we have reached the maximum allowed queue size.
+    if (InterlockedCompareExchange(&g_ClientCommandCount, 0, 0) >= MAX_CLIENT_COMMAND_COUNT) {
+        DebugMessage("AddClientCommand: Queue is full, dropping command.\n");
+        ExFreePool(newEntry);
+        return;
+    }
+
+
     // If there's no tail yet, the list is empty
     if (g_LastCommandEntry == NULL)
     {
@@ -36,6 +49,7 @@ VOID AddClientCommand(ClientCommandLinkedListEntry* newEntry)
         // Update the "last" pointer
         g_LastCommandEntry = newEntry;
     }
+    InterlockedIncrement(&g_ClientCommandCount);
 }
 
 // DequeueClientCommand: removes and returns the head (FIFO).
@@ -65,13 +79,13 @@ ClientCommandLinkedListEntry* DequeueClientCommand(void)
     // Detach the node from the list.
     head->next = NULL;
     head->before = NULL;
+    InterlockedDecrement(&g_ClientCommandCount);
     return head;
 }
 
 
 NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize)
 {
-    DebugMessage("SendClientCommand: Creating a new command entry.\n");
 
     // Allocate a new doubly-linked command node
     ClientCommandLinkedListEntry* newEntry =
@@ -102,26 +116,8 @@ NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize)
 
     // Insert the new node at the end of our list
     AddClientCommand(newEntry);
-
-    DebugMessage(
-        "SendClientCommand: Appended command 0x%02X to the list. (WorkState=%u)\n",
-        commandCode,
-        newEntry->workState
-    );
-
     // In a real driver, you might signal an event here 
     // so the client side knows a new command is ready.
 
     return STATUS_SUCCESS;
 }
-
-
-
-/// FUNCTIONS FOR SENDING INDIVIDUAL COMMANDS TO THE RUST CLIENT ------------------------
-
-// This function is now used to register a push IRP.
-ClientCommandLinkedListEntry* GetClientCommandListHandle()
-{
-    return g_LastCommandEntry;
-}
-

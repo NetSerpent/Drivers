@@ -16,5 +16,6 @@ VOID AsyncBlockAndQueuePacket(
 
 NTSTATUS InitializeInjectionHandle();
 VOID CleanupInjectionHandle();
+ULONG BuildPcapPacket(NET_BUFFER_LIST* nbl, UCHAR* buffer, ULONG bufferSize);
 
 #endif // ASYNC_CLASSIFY_H

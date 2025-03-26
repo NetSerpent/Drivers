@@ -4,7 +4,8 @@
 #include "packet_extractor.h"
 #include "dns_helper.h"
 #include "netserpent_packet.h"
-#include "async_classify.h"  // <-- new header
+#include "async_classify.h"
+#include "driver_to_client.h"
 // #include "packet_approval.h"  // no direct calls in the classify callback
 
 NTSTATUS NotifyCallback(FWPS_CALLOUT_NOTIFY_TYPE type, const GUID* filterkey, const FWPS_FILTER* filter)
@@ -59,6 +60,7 @@ VOID FilterCallback(
         return;
     }
 
+    /*
     // Otherwise, we do out-of-band inspection:
     // 1) Block the packet now
     classifyout->actionType = FWP_ACTION_BLOCK;
@@ -66,6 +68,25 @@ VOID FilterCallback(
 
     // 2) Clone + queue for user-mode scanning & re-injection
     AsyncBlockAndQueuePacket(Values, MetaData, filter, nbl);
+    */
 
-    // The original packet is blocked. We'll only re-inject if user-mode approves.
+
+    
+
+    // Build a PCAP packet header.
+    UCHAR pcapPacket[1024] = { 0 };
+    ULONG pcapSize = BuildPcapPacket(nbl, pcapPacket, sizeof(pcapPacket));
+    if (pcapSize > 0)
+    {
+        NTSTATUS sendStatus = SendClientCommand(RUST_PACKET_SECURITY_CHECK_CODE, pcapPacket, pcapSize);
+        if (NT_SUCCESS(sendStatus)) {
+            DebugMessage("FilterCallback: Enqueued security check command successfully.\n");
+        }
+        else {
+            DebugMessage("FilterCallback: Failed to enqueue security check command, status: 0x%08X\n", sendStatus);
+        }
+    }
+
+    // For the time being lets just have the packets pass for testing out the security command
+    classifyout->actionType = FWP_ACTION_PERMIT;
 }

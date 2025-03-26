@@ -296,21 +296,15 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
     case IOCTL_INFORM_NETWORK_CONNECTED:
     {
-        ////g_ClientConnected = TRUE;
-        //// Now start the filtering services.
-        //status = FilterServiceStartup(g_DriverObject, &g_RegistryPath);
-        //if (!NT_SUCCESS(status)) {
-        //    DebugMessage("NetSerpent: Failed to start filter services: 0x%08X\n", status);
-        //}
-        //else {
-        //    DebugMessage("NetSerpent: Filter services started.\n");
-        //}
-        DebugMessage("SENDING TEST COMMAND\n");
-        status = SendClientCommand(RUST_PACKET_TEST_CODE, NULL, 0);
-        status = SendClientCommand(RUST_PACKET_TEST_CODE, NULL, 0);
-        status = SendClientCommand(RUST_PACKET_TEST_CODE, NULL, 0);
-        status = STATUS_SUCCESS;
-        information = 0;
+        g_ClientConnected = TRUE;
+        // Now start the filtering services.
+        status = FilterServiceStartup(g_DriverObject, &g_RegistryPath);
+        if (!NT_SUCCESS(status)) {
+            DebugMessage("NetSerpent: Failed to start filter services: 0x%08X\n", status);
+        }
+        else {
+            DebugMessage("NetSerpent: Filter services started.\n");
+        }
 
         
         break;

@@ -11,6 +11,6 @@
 #define NETSERPENT_NETWORK_INFO_PATH    L"\\??\\C:\\NetSerpent\\network.info"
 
 // Debug constants
-#define VERBOSE 1
+#define VERBOSE 0
 
 #endif // CONSTANTS_H

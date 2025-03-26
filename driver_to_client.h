@@ -19,6 +19,5 @@ typedef struct ClientCommandLinkedListEntry {
 
 } ClientCommandLinkedListEntry;
 
-ClientCommandLinkedListEntry* GetClientCommandListHandle();
 NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize);
 ClientCommandLinkedListEntry* DequeueClientCommand(void);
