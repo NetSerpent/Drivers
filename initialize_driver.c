@@ -33,8 +33,8 @@ const char* IoctlCodeToString(ULONG controlCode)
 {
     switch (controlCode)
     {
-    case IOCTL_REGISTER_COMMAND_LISTENER:
-        return "IOCTL_REGISTER_COMMAND_LISTENER";
+    case IOCTL_GET_CLIENT_COMMAND_HANDLE:
+        return "IOCTL_GET_CLIENT_COMMAND_HANDLE";
     case IOCTL_SET_NETWORK_INFO:
         return "IOCTL_SET_NETWORK_INFO";
     case IOCTL_PROCESS_SECURITY_RESPONSE:
@@ -199,7 +199,7 @@ NTSTATUS DriverClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 //    ULONG ioControlCode = stack->Parameters.DeviceIoControl.IoControlCode;
 //
 //    switch (ioControlCode) {
-//    case IOCTL_REGISTER_COMMAND_LISTENER:
+//    case IOCTL_GET_CLIENT_COMMAND_HANDLE:
 //        status = HandleRegisterCommandListener(DeviceObject, Irp);
 //        break;
 //        // Add cases for other IOCTLs (e.g., IOCTL_GET_ERROR_MESSAGE, etc.)
@@ -263,38 +263,35 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         break;
     }*/
 
-
-    // BIGGER TODO: This should just happen as we get a packet from our server, we don't need a IOCTL input to do this
-    // TODO: Reformat this, security packets don't use the 0x# format
-    //       Only packets sent from the kernel driver to the rust client use the 0x## format (RUST_PACKET_SECURITY_CHECK_CODE would resolve to 0x3)
-    //case IOCTL_PROCESS_SECURITY_RESPONSE:
-    //{
-    //    if (inBufferLength < 1) {
-    //        status = STATUS_INVALID_PARAMETER;
-    //        break;
-    //    }
-    //    UCHAR* cmdBuffer = (UCHAR*)Irp->AssociatedIrp.SystemBuffer;
-    //    UCHAR command = cmdBuffer[0];
-    //    switch (command) {
-    //    case RUST_PACKET_SECURITY_CHECK_CODE: // Security status response
-    //        ProcessSecurityStatusCommand(cmdBuffer + 1, inBufferLength - 1);
-    //        status = STATUS_SUCCESS;
-    //        information = inBufferLength;
-    //        break;
-    //    default:
-    //        status = STATUS_INVALID_DEVICE_REQUEST;
-    //        break;
-    //    }
-    //    
-    //    break;
-    //}
-
     // TODO: Replace this with returning a handle of our last entry in the linked list
-    case IOCTL_REGISTER_COMMAND_LISTENER:  // 0x800
-        // This is crucial for queuing the IRP
-        DebugMessage("POINTER TO LAST COMMAND LIST ENTRY : %p", GetClientCommandListHandle());
+    case IOCTL_GET_CLIENT_COMMAND_HANDLE:
+    {
+        // Get the output buffer length from the IRP.
+        PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
+        ULONG outBufferLength = irpSp->Parameters.DeviceIoControl.OutputBufferLength;
+
+        // If the buffer is too small, return an error without removing an entry.
+        if (outBufferLength < sizeof(ClientCommandLinkedListEntry)) {
+            status = STATUS_BUFFER_TOO_SMALL;
+            break;
+        }
+
+        // Now dequeue the head (FIFO) of the command queue.
+        ClientCommandLinkedListEntry* head = DequeueClientCommand();
+        if (head == NULL) {
+            status = STATUS_NOT_FOUND;
+            break;
+        }
+
+        // Copy the command structure into the user-provided output buffer.
+        RtlCopyMemory(Irp->AssociatedIrp.SystemBuffer, head, sizeof(ClientCommandLinkedListEntry));
         status = STATUS_SUCCESS;
+        information = sizeof(ClientCommandLinkedListEntry);
+
+        // Free the memory for the dequeued node.
+        ExFreePool(head);
         break;
+    }
 
 
     case IOCTL_INFORM_NETWORK_CONNECTED:
@@ -309,6 +306,8 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         //    DebugMessage("NetSerpent: Filter services started.\n");
         //}
         DebugMessage("SENDING TEST COMMAND\n");
+        status = SendClientCommand(RUST_PACKET_TEST_CODE, NULL, 0);
+        status = SendClientCommand(RUST_PACKET_TEST_CODE, NULL, 0);
         status = SendClientCommand(RUST_PACKET_TEST_CODE, NULL, 0);
         status = STATUS_SUCCESS;
         information = 0;
@@ -328,33 +327,3 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     IoCompleteRequest(Irp, IO_NO_INCREMENT);
     return status;
 }
-
-
-//NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
-//{
-//    PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
-//    ULONG ioControlCode = stack->Parameters.DeviceIoControl.IoControlCode;
-//    NTSTATUS status = STATUS_INVALID_DEVICE_REQUEST;
-//
-//    switch (ioControlCode) {
-//        // Client-to-driver commands
-//    case IOCTL_SET_NETWORK_INFO:
-//    case IOCTL_PROCESS_SECURITY_RESPONSE:
-//        status = ClientToDriverControl(DeviceObject, Irp);
-//        break;
-//
-//        // For push events, register the IRP.
-//    case IOCTL_REGISTER_COMMAND_LISTENER:
-//        status = HandleRegisterCommandListener(DeviceObject, Irp);
-//        break;
-//
-//
-//    default:
-//        status = STATUS_INVALID_DEVICE_REQUEST;
-//        Irp->IoStatus.Status = status;
-//        Irp->IoStatus.Information = 0;
-//        IoCompleteRequest(Irp, IO_NO_INCREMENT);
-//        break;
-//    }
-//    return status;
-//}

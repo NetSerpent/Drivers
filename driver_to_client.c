@@ -38,6 +38,36 @@ VOID AddClientCommand(ClientCommandLinkedListEntry* newEntry)
     }
 }
 
+// DequeueClientCommand: removes and returns the head (FIFO).
+// Returns NULL if the list is empty.
+ClientCommandLinkedListEntry* DequeueClientCommand(void)
+{
+    if (g_LastCommandEntry == NULL)
+        return NULL;
+
+    // Walk backward to find the head (node with before == NULL)
+    ClientCommandLinkedListEntry* head = g_LastCommandEntry;
+    while (head->before != NULL)
+    {
+        head = head->before;
+    }
+
+    // Remove head from the list:
+    if (head->next != NULL)
+    {
+        head->next->before = NULL;
+    }
+    else
+    {
+        // Only one node was in the list.
+        g_LastCommandEntry = NULL;
+    }
+    // Detach the node from the list.
+    head->next = NULL;
+    head->before = NULL;
+    return head;
+}
+
 
 NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize)
 {
