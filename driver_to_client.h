@@ -21,3 +21,4 @@ typedef struct ClientCommandLinkedListEntry {
 
 NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize);
 ClientCommandLinkedListEntry* DequeueClientCommand(void);
+NTSTATUS AddStreamingServerIp(CHAR* ipString, ULONG ipStringLength);

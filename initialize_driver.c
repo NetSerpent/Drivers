@@ -35,8 +35,8 @@ const char* IoctlCodeToString(ULONG controlCode)
     {
     case IOCTL_GET_CLIENT_COMMAND_HANDLE:
         return "IOCTL_GET_CLIENT_COMMAND_HANDLE";
-    case IOCTL_SET_NETWORK_INFO:
-        return "IOCTL_SET_NETWORK_INFO";
+    case IOCTL_SET_STREAMING_SERVER_IP:
+        return "IOCTL_SET_STREAMING_SERVER_IP";
     case IOCTL_PROCESS_SECURITY_RESPONSE:
         return "IOCTL_PROCESS_SECURITY_RESPONSE";
     case IOCTL_INFORM_NETWORK_CONNECTED:
@@ -246,7 +246,7 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
 
     // TODO: Make this a Push change for the client to handle
-    /*case IOCTL_SET_NETWORK_INFO:
+    /*case IOCTL_SET_STREAMING_SERVER_IP:
     {
         if (inBufferLength < sizeof(GUID)) {
             status = STATUS_BUFFER_TOO_SMALL;
@@ -306,7 +306,24 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
             DebugMessage("NetSerpent: Filter services started.\n");
         }
 
+
+        //SendClientCommand(RUST_PACKET_ERROR_CODE, "Test error message!", sizeof("Test error message!"));
+        //status = STATUS_SUCCESS;
+
         
+        break;
+    }
+
+    case IOCTL_SET_STREAMING_SERVER_IP:
+    {
+        PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
+        ULONG inBufferLength = irpSp->Parameters.DeviceIoControl.InputBufferLength;
+        CHAR* ipString = (CHAR*)Irp->AssociatedIrp.SystemBuffer;
+
+        status = AddStreamingServerIp(ipString, inBufferLength);
+        if (NT_SUCCESS(status)) {
+            information = 0;  // No data returned to user
+        }
         break;
     }
 

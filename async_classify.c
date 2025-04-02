@@ -114,7 +114,7 @@ static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext)
         UCHAR pcapPacket[1024] = { 0 };
         ULONG pcapSize = BuildPcapPacket(ctx->InspectCtx.ClonedNbl, pcapPacket, sizeof(pcapPacket));
 
-        // (Here we use RUST_PACKET_TEST_CODE as an example command code.)
+        // Send command to client to send packet to our servers
         NTSTATUS sendStatus = SendClientCommand(RUST_PACKET_SECURITY_CHECK_CODE, pcapPacket, pcapSize);
         if (NT_SUCCESS(sendStatus)) {
             DebugMessage("AsyncInspectionWorker: Client command sent successfully.\n");

@@ -3,6 +3,7 @@
 #include "driver_to_client.h"
 #include <wdm.h>
 
+
 // Max number of commands in our stack allowed
 #define MAX_CLIENT_COMMAND_COUNT 1024
 volatile LONG g_ClientCommandCount = 0;
@@ -118,6 +119,56 @@ NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize)
     AddClientCommand(newEntry);
     // In a real driver, you might signal an event here 
     // so the client side knows a new command is ready.
+
+    return STATUS_SUCCESS;
+}
+
+
+/// INDIVIDUAL COMMAND FUNCTIONS -----------------------
+
+
+#include <ip2string.h> // for RtlIpv4StringToAddressA
+#include <inaddr.h> // for in_addr structure
+NTSTATUS AddStreamingServerIp(CHAR* ipString, ULONG ipStringLength)
+{
+    // 1) Validate the input length.
+    if (ipStringLength == 0 || ipStringLength >= 64) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    // 2) Copy into a local buffer to ensure null-termination.
+    CHAR localBuffer[64];
+    RtlZeroMemory(localBuffer, sizeof(localBuffer));
+    RtlCopyMemory(localBuffer, ipString, ipStringLength);
+
+    // 3) Parse the IP string into a 32-bit IPv4 address using RtlIpv4StringToAddressA.
+    ULONG ipv4Addr = 0;
+    ANSI_STRING ansiStr;
+    RtlInitAnsiString(&ansiStr, localBuffer);
+
+    PCSZ terminator = NULL;
+    NTSTATUS status = RtlIpv4StringToAddressA(ansiStr.Buffer,TRUE,&terminator,(PIN_ADDR)&ipv4Addr);
+    if (!NT_SUCCESS(status)) {
+        DebugMessage("AddStreamingServerIp: Failed to parse IP string, status=0x%08X\n", status);
+        return status;
+    }
+
+    // 4) Check if we already have the IP or if there's room in g_TrustedServerIPs.
+    for (ULONG i = 0; i < g_TrustedServerIPCount; i++) {
+        if (g_TrustedServerIPs[i] == ipv4Addr) {
+            return STATUS_SUCCESS;
+        }
+    }
+
+    // Check to be sure we are not going over the IP limit
+    if (g_TrustedServerIPCount >= MAX_TRUSTED_IPS) {
+        DebugMessage("AddStreamingServerIp: IP list full.\n");
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
+
+    g_TrustedServerIPs[g_TrustedServerIPCount++] = ipv4Addr;
+    DebugMessage("AddStreamingServerIp: Added or kept existing IP=0x%08X, total count=%lu\n",
+        ipv4Addr, g_TrustedServerIPCount);
 
     return STATUS_SUCCESS;
 }
