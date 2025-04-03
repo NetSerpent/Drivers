@@ -32,5 +32,6 @@ VOID DebugStatus(PCSTR msg, NTSTATUS status);
 #define RUST_PACKET_SECURITY_CHECK_CODE 0x3
 #define RUST_PACKET_ERROR_CODE            0x4
 
+#define RUST_MAX_PACKET_PAYLOAD_SIZE 255
 
 #endif // COMMON_H

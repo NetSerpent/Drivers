@@ -188,6 +188,7 @@ ULONG BuildPcapPacket(NET_BUFFER_LIST * nbl, UCHAR * buffer, ULONG bufferSize)
     // Copy the packet data immediately following the header.
     RtlCopyMemory(buffer + sizeof(pcaprec_hdr_t), packetData, packetDataLength);
     ExFreePool(packetData);
+
     return requiredSize;
 }
 

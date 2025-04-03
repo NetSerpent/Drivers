@@ -9,7 +9,7 @@ typedef struct ClientCommandLinkedListEntry {
     UCHAR workState;
 
     // Buffer for data
-    UCHAR data[64];
+    UCHAR data[RUST_MAX_PACKET_PAYLOAD_SIZE];
 
     // Pointer to the next command in the list
     struct ClientCommandLinkedListEntry* next;
