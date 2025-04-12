@@ -1,0 +1,25 @@
+﻿  Building 'KernelHelloWorld' with toolset 'WindowsKernelModeDriver10.0' and the 'Universal' target platform.
+C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Microsoft\VC\v170\Microsoft.CppBuild.targets(531,5): warning MSB8028: The intermediate directory (\\wsl.localhost\Ubuntu\home\will\company\Drivers\build\km_intermediates\) contains files shared from another project (ns_kernel_drivers.vcxproj).  This can lead to incorrect clean and rebuild behavior.
+  Stamping \\wsl.localhost\Ubuntu\home\will\company\Drivers\build\km_intermediates\KernelHelloWorld.inf
+  Stamping [Version] section with DriverVer=04/11/2025,16.38.56.945
+  async_classify.c
+  common.c
+  connection.c
+  dns_helper.c
+  driver.c
+  driver_to_client.c
+  filter.c
+  globals.c
+  initialize_driver.c
+  netserpent_packet.c
+  network_info.c
+  packet_approval.c
+  packet_extractor.c
+  packet_queue.c
+  wfp.c
+  Generating Code...
+  KernelHelloWorld.vcxproj -> \\wsl.localhost\Ubuntu\home\will\company\Drivers\build\KernelHelloWorld.sys
+  Done Adding Additional Store
+  Successfully signed: \\wsl.localhost\Ubuntu\home\will\company\Drivers\build\KernelHelloWorld.sys
+  
+  Driver is 'Universal'.

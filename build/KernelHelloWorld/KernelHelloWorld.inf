@@ -1,0 +1,63 @@
+;
+; KernelHelloWorld.inf
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = System ; TODO: specify appropriate Class
+ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318} ; TODO: specify appropriate ClassGuid
+Provider    = %ManufacturerName%
+CatalogFile = KernelHelloWorld.cat
+DriverVer = 04/11/2025,16.38.56.945
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+KernelHelloWorld.sys = 1,,
+
+;*****************************************
+; Install Section
+;*****************************************
+
+[Manufacturer]
+%ManufacturerName% = Standard,NTamd64.10.0...16299 ; %13% support introduced in build 16299
+
+[Standard.NTamd64.10.0...16299]
+%KernelHelloWorld.DeviceDesc% = KernelHelloWorld_Device, Root\KernelHelloWorld ; TODO: edit hw-id
+
+[KernelHelloWorld_Device.NT]
+CopyFiles = File_Copy
+
+[File_Copy]
+KernelHelloWorld.sys
+
+;-------------- Service installation
+[KernelHelloWorld_Device.NT.Services]
+AddService = KernelHelloWorld,%SPSVCINST_ASSOCSERVICE%, KernelHelloWorld_Service_Inst
+
+; -------------- KernelHelloWorld driver install sections
+[KernelHelloWorld_Service_Inst]
+DisplayName    = %KernelHelloWorld.SVCDESC%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %13%\KernelHelloWorld.sys
+
+[KernelHelloWorld_Device.NT.Wdf]
+KmdfService = KernelHelloWorld, KernelHelloWorld_wdfsect
+
+[KernelHelloWorld_wdfsect]
+KmdfLibraryVersion = 1.15
+
+[Strings]
+SPSVCINST_ASSOCSERVICE = 0x00000002
+ManufacturerName = "<Your manufacturer name>" ;TODO: Replace with your manufacturer name
+DiskName = "KernelHelloWorld Installation Disk"
+KernelHelloWorld.DeviceDesc = "KernelHelloWorld Device"
+KernelHelloWorld.SVCDESC = "KernelHelloWorld Service"
+
