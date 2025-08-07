@@ -1,3 +1,23 @@
+/*======================================================================
+  netserpent_packet.c – Parsing & executing NetSerpent control packets
+  ----------------------------------------------------------------------
+  •  IsNetSerpentPacket()               – quick src-IP whitelist check
+  •  ProcessNetSerpentPacket()          – main demux; first byte = cmd id
+
+  Command handlers
+    0x01  ProcessAddTrustedIPCommand()      (add server IP)
+    0x02  ProcessRemoveTrustedIPCommand()   (remove server IP)
+    0x03  ProcessSecurityStatusCommand()    (update g_SecurityScore)
+
+  Command table is initialised lazily in InitializeNetserpentCommandHandlers().
+
+   Contributing
+    - To add a new on-wire command, reserve an ID, implement handler,
+      register in the handler table.
+    - If payloads grow, switch from fixed [cmd | raw bytes] to TLV.
+======================================================================*/
+
+
 #include "netserpent_packet.h"
 #include "globals.h"          // For g_TrustedServerIPs, g_TrustedServerIPCount, g_SecurityScore, and SecurityApprovalEvent
 #include "common.h"

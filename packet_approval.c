@@ -1,4 +1,22 @@
-﻿#include "packet_approval.h"
+﻿/*======================================================================
+  packet_approval.c – Tiny synchronisation gate for packet re-injection
+  ----------------------------------------------------------------------
+  • NTSTATUS WaitForPacketApproval()
+        Waits up to 50 ms for SecurityApprovalEvent then compares the
+        latest g_SecurityScore vs g_SecurityThreshold.
+
+  Return codes
+        STATUS_SUCCESS        – approve and continue processing
+        STATUS_ACCESS_DENIED  – block / drop
+        STATUS_TIMEOUT        – fall-back decision (currently “block”)
+
+   Contributing
+    - Adjust timeout or make it dynamic based on packet priority.
+    - Surface richer verdicts (e.g. “quarantine”, “reroute”) via enum.
+======================================================================*/
+
+
+#include "packet_approval.h"
 #include "globals.h"
 
 // This function waits for a security approval signal from our NetSerpent server.

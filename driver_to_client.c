@@ -1,4 +1,28 @@
-﻿#include "driver_to_client.h"
+﻿/*======================================================================
+  driver_to_client.c – Kernel → User-mode command queue
+  ----------------------------------------------------------------------
+  Core idea: the kernel builds small command objects (up to 64 B payload)
+  and enqueues them in a lock-free doubly-linked list.  The Rust client
+  polls / waits on this list to process work.
+
+  • AddClientCommand()          – O(1) tail insert with backlog guard
+  • DequeueClientCommand()      – O(n) (walk back to head) FIFO pop
+  • SendClientCommand(code,buf) – Public façade to build & enqueue
+  • AddStreamingServerIp()      – Example command-specific helper
+
+  Globals
+    g_LastCommandEntry          – tail pointer
+    g_ClientCommandCount        – atomic depth counter
+
+   Contributing
+    - Increase MAX_CLIENT_COMMAND_COUNT or auto-scale when near full.
+    - Extend command set: create new helper, encode payload, call
+      SendClientCommand().
+    - Consider replacing the O(n) dequeue with a head pointer +
+      interlocked list ops if throughput becomes an issue.
+======================================================================*/
+
+#include "driver_to_client.h"
 #include "globals.h"
 #include "driver_to_client.h"
 #include <wdm.h>

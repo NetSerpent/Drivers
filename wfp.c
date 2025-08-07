@@ -1,3 +1,23 @@
+
+/*======================================================================
+  wfp.c – Windows Filtering Platform boiler-plate
+  ----------------------------------------------------------------------
+  Opens WFP engine, registers our call-out on
+  FWPM_LAYER_INBOUND_IPPACKET_V4, and wires it to FilterCallback().
+
+  Public helpers
+    • NTSTATUS InitializeWfp(void)      – one-stop bring-up
+    • VOID     UnInitWfp(void)          – symmetrical cleanup
+
+  Key globals (in globals.h)
+    EngineHandle, RegCalloutId, AddCalloutId, filterid
+
+   Contributing
+    - Add IPv6 by cloning GUIDs / layers (IPPACKET_V6).
+    - Insert condition objects inside WfpAddFilter() when you need to
+      limit interception to specific interfaces or protocols.
+======================================================================*/
+
 #include "wfp.h"
 #include "filter.h"
 #include "globals.h"

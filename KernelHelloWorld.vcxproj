@@ -74,8 +74,8 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <DebuggerFlavor>DbgengKernelDebugger</DebuggerFlavor>
     <Inf2CatUseLocalTime>true</Inf2CatUseLocalTime>
-    <OutDir>$(SolutionDir)build\</OutDir>
-    <IntDir>$(SolutionDir)build\km_intermediates\</IntDir>
+    <OutDir>$(SolutionDir)build\..\..\NSBuilder\dockerfiles\windows\docker_mount\driver</OutDir>
+    <IntDir>$(SolutionDir)build\km_intermediates\..\..\..\NSBuilder\dockerfiles\windows\docker_mount\driver\km_intermediates</IntDir>
     <EnableInf2cat>false</EnableInf2cat>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

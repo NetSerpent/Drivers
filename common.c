@@ -1,3 +1,19 @@
+/*======================================================================
+  common.c – Tiny utility helpers shared across the kernel components
+  ----------------------------------------------------------------------
+   DebugStatus(...)   – Single-line wrapper that prints an NTSTATUS in
+                          hex.  Use anywhere you need “msg: 0xXXXXXXXX”.
+   DebugMessage(...)  – (declared in common.h) macro that funnels all
+                          debug output through DbgPrintEx.
+
+  Contributing
+    - Add *stateless* debugging helpers or generally useful one-liners
+      that do **not** belong to a specific subsystem.
+    - TODO inside shows the planned “log-to-file” upgrade: look up the
+      shared folder constant in *constants.h*, create / append the text
+      file, then cache the file handle in a global for speed.
+======================================================================*/
+
 #include "common.h"
 
 VOID DebugStatus(PCSTR msg, NTSTATUS status)

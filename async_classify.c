@@ -1,4 +1,25 @@
-// async_classify.c
+/*======================================================================
+  async_classify.c – Off-path packet inspection & re-injection worker
+  ----------------------------------------------------------------------
+  Flow
+    FilterCallback -> AsyncBlockAndQueuePacket()
+                   -> clones NBL, queues IoWorkItem
+                   -> AsyncInspectionWorker()
+                        · WaitForPacketApproval()
+                        · Builds mini-PCAP
+                        · SendClientCommand(SECURITY_CHECK,…)
+                        · (future) Inject back via FwpsInjectNetBufferList2
+
+  Major helpers
+    - InitializeInjectionHandle() / CleanupInjectionHandle()
+    - BuildPcapPacket() – local static; converts NBL -> PCAP record
+
+   Contributing
+    - Wire InjectionCompletionFn once re-injection path is enabled.
+    - Consider using ExInitializeNPagedLookasideList for ctx objects if
+      allocation churn becomes measurable.
+======================================================================*/
+
 #include "globals.h"
 #include "packet_approval.h"
 #include "driver_to_client.h"  // now used for SendClientCommand

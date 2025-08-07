@@ -1,3 +1,24 @@
+/*======================================================================
+  packet_extractor.c – Safe flattening of scattered NET_BUFFER_LISTs
+  ----------------------------------------------------------------------
+  Public API
+    NTSTATUS ExtractPacketFromNbl(NBL*, UCHAR** outBuf, ULONG* outLen)
+
+  Internals
+    • CopyFromNetBufferToBuffer() – handles contiguous vs MDL-chained
+      buffers; uses MmGetSystemAddressForMdlSafe.
+
+  Ownership
+    - Caller owns *outBuf (allocated from NonPagedPoolNx) and must
+      ExFreePool() it.
+
+   Contributing
+    - Add fast-path for single MDL + contiguous data to reduce copies.
+    - Track statistics (total bytes copied, failures) under `globals.c`
+      if benchmarking shows this is a hot path.
+======================================================================*/
+
+
 #include "packet_extractor.h"
 
 // Helper function that copies 'length' bytes from the NET_BUFFER starting at its current offset

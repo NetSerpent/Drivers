@@ -1,3 +1,18 @@
+/*======================================================================
+  dns_helper.c – Fast DNS-classifier for NET_BUFFER_LISTs
+  ----------------------------------------------------------------------
+    BOOLEAN IsDnsPacket(NBL*)
+         Returns TRUE for UDP/TCP packets on port 53
+         (works directly on NDIS NBL without flattening).
+
+   Contributing
+    - Extend the protocol structs (IP_HEADER, UDP_HEADER, …) only if
+      you need extra fields – they are *wire* formats, so keep them
+      packed (pragma pack push/pop).
+    - Add IPv6 support by cloning IsDnsPacket() with the v6 header
+      layout and checking FWPS_LAYER_INBOUND_IPPACKET_V6.
+======================================================================*/
+
 #include "dns_helper.h"
 
 // Include ntddndis.h to bring in the proper definitions for NDIS routines.

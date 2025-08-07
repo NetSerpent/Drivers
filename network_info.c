@@ -1,3 +1,26 @@
+
+/*======================================================================
+  network_info.c – Persisted network GUID helper
+  ----------------------------------------------------------------------
+  Files / Paths
+    %SystemRoot%\NetSerpent\network\network_info.bin (see constants.h)
+
+  Public API
+    • NTSTATUS LoadNetworkInfo(GUID* out)
+    • NTSTATUS SaveNetworkInfo(const GUID* in)
+    • NTSTATUS WaitForNetworkConnectionInformation()
+
+  Implementation notes
+    - Uses ZwCreateFile with FILE_OPEN_IF to auto-create directories.
+    - WaitForNetworkConnectionInformation() blocks up to 30 s on a
+      kernel event signalled by user-mode “admin connect” action.
+
+   Contributing
+    - Extend the on-disk structure (version tag, timestamp, etc.) but
+      keep it *fixed-size* so simple ZwReadFile still works.
+======================================================================*/
+
+
 #include "network_info.h"
 #include "globals.h"
 #include "constants.h"

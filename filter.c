@@ -1,3 +1,19 @@
+﻿/*======================================================================
+  filter.c - WFP call-out classify routine
+  ----------------------------------------------------------------------
+  • NotifyCallback() / FlowDeleteCallback() – boiler-plate, mostly NOP
+  • FilterCallback(...) – central packet decision path
+        → Permit immediately for DNS or NetSerpent control traffic
+        → While client disconnected, default-permit
+        → Otherwise build PCAP snapshot + queue security check command
+
+   Contributing
+    - Plug the commented “AsyncBlockAndQueuePacket” section back in when
+      out-of-band blocking/re-injection is ready.
+    - Add layer-specific fast-paths *before* the expensive PCAP build.
+    - Keep this file *pure WFP*: heavy analysis moves to async_classify.c
+======================================================================*/
+
 #include "filter.h"
 #include "globals.h"
 #include "packet_queue.h"

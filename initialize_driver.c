@@ -90,8 +90,6 @@ NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRIN
         return status;
     }
 
-    DebugMessage("NetSerpent: Created Io Device.\n");
-
 
 
     //
@@ -112,7 +110,6 @@ NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRIN
             "NetSerpent Error: Failed to create symbolic link (0x%08X)", status);
         return status;
     }
-    DebugMessage("NetSerpent: Created Io Link.\n");
 
     // Initialize our admin connection event (non-signaled)
     KeInitializeEvent(&AdminConnectionEvent, NotificationEvent, FALSE);
@@ -120,7 +117,6 @@ NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRIN
     // Initialize security approval event
     KeInitializeEvent(&SecurityApprovalEvent, NotificationEvent, FALSE);
 
-    DebugMessage("NetSerpent: Communication service startup complete.\n");
     return status;
 }
 
@@ -213,7 +209,8 @@ NTSTATUS DriverClose(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 //    return status;
 //}
 
-// USED TO BE NAMED ClientToDriverControl
+// TODO: Is this the right place to put this function?
+// The file here is about service initialization
 NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
     PIO_STACK_LOCATION irpSp = IoGetCurrentIrpStackLocation(Irp);
