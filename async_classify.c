@@ -137,10 +137,7 @@ static VOID NTAPI AsyncInspectionWorker(_In_ PVOID StartContext)
 
         // Send command to client to send packet to our servers
         NTSTATUS sendStatus = SendClientCommand(RUST_PACKET_SECURITY_CHECK_CODE, pcapPacket, pcapSize);
-        if (NT_SUCCESS(sendStatus)) {
-            DebugMessage("AsyncInspectionWorker: Client command sent successfully.\n");
-        }
-        else {
+        if (!NT_SUCCESS(sendStatus)) {
             DebugMessage("AsyncInspectionWorker: Failed to send client command, status: 0x%08X\n", sendStatus);
         }
     }

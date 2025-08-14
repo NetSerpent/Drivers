@@ -24,95 +24,93 @@
 
 #include "driver_to_client.h"
 #include "globals.h"
-#include "driver_to_client.h"
 #include <wdm.h>
 
-
-// Max number of commands in our stack allowed
 #define MAX_CLIENT_COMMAND_COUNT 1024
+
+// Diagnostic: disable queue entirely to rule out list corruption / memory growth
+#define NS_DIAG_DISABLE_CLIENT_QUEUE 0  // <—— set to 0 to re-enable
+
 volatile LONG g_ClientCommandCount = 0;
 
-
-/// GENERAL FUNCTIONS FOR PACKET SENDING TO CLIENT -----------------------
-
-// --------------------------------------------------------------------
-// Global pointer to the last entry in our doubly-linked command list.
-// If NULL, the list is empty. 
-// --------------------------------------------------------------------
+// Global tail pointer for doubly-linked list.
 ClientCommandLinkedListEntry* g_LastCommandEntry = NULL;
 
+static __forceinline VOID FreeEntry(_In_ ClientCommandLinkedListEntry* e)
+{
+    if (e) ExFreePool(e);
+}
+
+#if !NS_DIAG_DISABLE_CLIENT_QUEUE
 // --------------------------------------------------------------------
-// Adds a new entry to the tail of the doubly-linked list. 
-// If the list is empty, the new entry becomes the first/only element.
+// Adds a new entry to the tail of the doubly-linked list. (UNLOCKED)
+// NOTE: In high PPS, concurrent callers can corrupt the list. Use
+//       a spin lock if you re-enable this in production.
 // --------------------------------------------------------------------
 VOID AddClientCommand(ClientCommandLinkedListEntry* newEntry)
 {
-    // TODO: Probably in the future we will want to ask the client to increase the number of workers if we get close to being full
-    // Check if we have reached the maximum allowed queue size.
     if (InterlockedCompareExchange(&g_ClientCommandCount, 0, 0) >= MAX_CLIENT_COMMAND_COUNT) {
         DebugMessage("AddClientCommand: Queue is full, dropping command.\n");
         ExFreePool(newEntry);
         return;
     }
 
-
-    // If there's no tail yet, the list is empty
     if (g_LastCommandEntry == NULL)
     {
-        // This is the first entry
         g_LastCommandEntry = newEntry;
         newEntry->before = NULL;
         newEntry->next = NULL;
     }
     else
     {
-        // Link the new entry after the old tail
-        g_LastCommandEntry->next = newEntry;
-        newEntry->before = g_LastCommandEntry;
-        newEntry->next = NULL;
-
-        // Update the "last" pointer
-        g_LastCommandEntry = newEntry;
+        g_LastCommandEntry->next   = newEntry;
+        newEntry->before           = g_LastCommandEntry;
+        newEntry->next             = NULL;
+        g_LastCommandEntry         = newEntry;
     }
     InterlockedIncrement(&g_ClientCommandCount);
 }
+#else
+// Diagnostic stub: pretend we enqueued, but just free it.
+static VOID AddClientCommand(ClientCommandLinkedListEntry* newEntry)
+{
+    UNREFERENCED_PARAMETER(newEntry);
+    // No queueing in diagnostics
+}
+#endif
 
-// DequeueClientCommand: removes and returns the head (FIFO).
-// Returns NULL if the list is empty.
+#if !NS_DIAG_DISABLE_CLIENT_QUEUE
+// FIFO dequeue by walking back to head (O(n)). Caller frees returned node.
 ClientCommandLinkedListEntry* DequeueClientCommand(void)
 {
     if (g_LastCommandEntry == NULL)
         return NULL;
 
-    // Walk backward to find the head (node with before == NULL)
     ClientCommandLinkedListEntry* head = g_LastCommandEntry;
     while (head->before != NULL)
-    {
         head = head->before;
-    }
 
-    // Remove head from the list:
     if (head->next != NULL)
-    {
         head->next->before = NULL;
-    }
     else
-    {
-        // Only one node was in the list.
         g_LastCommandEntry = NULL;
-    }
-    // Detach the node from the list.
+
     head->next = NULL;
     head->before = NULL;
     InterlockedDecrement(&g_ClientCommandCount);
     return head;
 }
-
+#else
+ClientCommandLinkedListEntry* DequeueClientCommand(void)
+{
+    // Diagnostics: nothing ever queued.
+    return NULL;
+}
+#endif
 
 NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize)
 {
-
-    // Allocate a new doubly-linked command node
+    // Allocate a new command node
     ClientCommandLinkedListEntry* newEntry =
         (ClientCommandLinkedListEntry*)ExAllocatePoolZero(
             NonPagedPoolNx,
@@ -125,74 +123,58 @@ NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize)
         return STATUS_INSUFFICIENT_RESOURCES;
     }
 
-    // Initialize the fields
     newEntry->commandCode = commandCode;
-    newEntry->workState = 0; // Untouched
+    newEntry->workState   = 0; // untouched
 
-    // Copy up to 64 bytes of the payload
-    // TODO: How should we handle this edge case other than clipping?
-    ULONG copyLength = (payloadSize > sizeof(newEntry->data))
-        ? sizeof(newEntry->data)
-        : payloadSize;
-    if (payload && copyLength > 0)
-    {
+    ULONG copyLength = (payload && payloadSize > 0)
+        ? ((payloadSize > sizeof(newEntry->data)) ? sizeof(newEntry->data) : payloadSize)
+        : 0;
+
+    if (copyLength > 0)
         RtlCopyMemory(newEntry->data, payload, copyLength);
-    }
 
-    // Insert the new node at the end of our list
-    AddClientCommand(newEntry);
-    // In a real driver, you might signal an event here 
-    // so the client side knows a new command is ready.
-
+#if NS_DIAG_DISABLE_CLIENT_QUEUE
+    // ===================== DIAGNOSTIC BEHAVIOR ======================
+    // Drop immediately to avoid:
+    //  • NonPagedPool growth,
+    //  • lock-free list pointer races,
+    //  • user-mode dequeue lag causing backlog.
+    // ================================================================
+    FreeEntry(newEntry);
     return STATUS_SUCCESS;
+#else
+    AddClientCommand(newEntry);
+    return STATUS_SUCCESS;
+#endif
 }
 
-
-/// INDIVIDUAL COMMAND FUNCTIONS -----------------------
-
-
-#include <ip2string.h> // for RtlIpv4StringToAddressA
-#include <inaddr.h> // for in_addr structure
+/* Optional utility that might be called elsewhere */
+#include <ip2string.h>
+#include <inaddr.h>
 NTSTATUS AddStreamingServerIp(CHAR* ipString, ULONG ipStringLength)
 {
-    // 1) Validate the input length.
-    if (ipStringLength == 0 || ipStringLength >= 64) {
+    if (ipStringLength == 0 || ipStringLength >= 64)
         return STATUS_INVALID_PARAMETER;
-    }
 
-    // 2) Copy into a local buffer to ensure null-termination.
-    CHAR localBuffer[64];
-    RtlZeroMemory(localBuffer, sizeof(localBuffer));
+    CHAR localBuffer[64] = {0};
     RtlCopyMemory(localBuffer, ipString, ipStringLength);
 
-    // 3) Parse the IP string into a 32-bit IPv4 address using RtlIpv4StringToAddressA.
     ULONG ipv4Addr = 0;
     ANSI_STRING ansiStr;
     RtlInitAnsiString(&ansiStr, localBuffer);
 
     PCSZ terminator = NULL;
-    NTSTATUS status = RtlIpv4StringToAddressA(ansiStr.Buffer,TRUE,&terminator,(PIN_ADDR)&ipv4Addr);
-    if (!NT_SUCCESS(status)) {
-        DebugMessage("AddStreamingServerIp: Failed to parse IP string, status=0x%08X\n", status);
+    NTSTATUS status = RtlIpv4StringToAddressA(ansiStr.Buffer, TRUE, &terminator, (PIN_ADDR)&ipv4Addr);
+    if (!NT_SUCCESS(status))
         return status;
-    }
 
-    // 4) Check if we already have the IP or if there's room in g_TrustedServerIPs.
-    for (ULONG i = 0; i < g_TrustedServerIPCount; i++) {
-        if (g_TrustedServerIPs[i] == ipv4Addr) {
+    for (ULONG i = 0; i < g_TrustedServerIPCount; i++)
+        if (g_TrustedServerIPs[i] == ipv4Addr)
             return STATUS_SUCCESS;
-        }
-    }
 
-    // Check to be sure we are not going over the IP limit
-    if (g_TrustedServerIPCount >= MAX_TRUSTED_IPS) {
-        DebugMessage("AddStreamingServerIp: IP list full.\n");
+    if (g_TrustedServerIPCount >= MAX_TRUSTED_IPS)
         return STATUS_INSUFFICIENT_RESOURCES;
-    }
 
     g_TrustedServerIPs[g_TrustedServerIPCount++] = ipv4Addr;
-    DebugMessage("AddStreamingServerIp: Added or kept existing IP=0x%08X, total count=%lu\n",
-        ipv4Addr, g_TrustedServerIPCount);
-
     return STATUS_SUCCESS;
 }

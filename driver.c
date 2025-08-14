@@ -26,7 +26,8 @@
 #include "connection.h"
 
 
-// TODO FOR NEXT SESSION: Do not turn on services a second time when already on, error check for anything related to client connecting again for some reason 
+// TODO FOR NEXT SESSION: Clean up this code, each function and file should have
+// more specific responsibilities. Everything should be well documented.
 
 
 

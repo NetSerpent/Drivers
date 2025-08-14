@@ -155,7 +155,6 @@ NTSTATUS FilterServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING Regis
     // Mark that the filter service is now started.
     g_FilterServiceStarted = TRUE;
 
-    DebugMessage("NetSerpent: Filter service startup complete.\n");
     return STATUS_SUCCESS;
 }
 
@@ -299,17 +298,11 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
         if (!NT_SUCCESS(status)) {
             DebugMessage("NetSerpent: Failed to start filter services: 0x%08X\n", status);
         }
-        else {
-            DebugMessage("NetSerpent: Filter services started.\n");
-        }
-
-
-        //SendClientCommand(RUST_PACKET_ERROR_CODE, "Test error message!", sizeof("Test error message!"));
-        //status = STATUS_SUCCESS;
 
         
         break;
     }
+
 
     case IOCTL_SET_STREAMING_SERVER_IP:
     {
