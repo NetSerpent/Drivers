@@ -8,6 +8,9 @@ typedef struct ClientCommandLinkedListEntry {
     // Work state (0x0 : untouched) (0x1 : touched) (0x2 for finished not needed since we will just free the memory)
     UCHAR workState;
 
+	// Length of the data
+    USHORT dataLen;
+
     // Buffer for data
     UCHAR data[RUST_MAX_PACKET_PAYLOAD_SIZE];
 

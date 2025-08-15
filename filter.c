@@ -47,6 +47,8 @@ VOID FilterCallback(
     FWPS_CLASSIFY_OUT0* classifyout)
 {
 
+    // CONTEXT: THIS FUNCTION IS CALLED FOR EVERY PORT 53 PACKET
+
     // IMPORTANT: Only rely on NBL if your layer guarantees it’s present.
     // Use metadata for DNS detection:
     //if (!IsDnsByMetadata(Values, filter)) {
@@ -54,23 +56,17 @@ VOID FilterCallback(
     //    return;
     //}
 
-    //NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerdata;
-    //if (!nbl) {
-    //    // Some layers don't supply NBLs → we can't build PCAP, just permit (or handle differently).
-    //    classifyout->actionType = FWP_ACTION_PERMIT;
-    //    return;
-    //}
+    NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerdata;
+    if (!nbl) {
+        // Some layers don't supply NBLs → we can't build PCAP, just permit (or handle differently).
+        return;
+    }
 
     //DebugMessage("FilterCallback: Processing DNS packet \n");
 
-    //UCHAR pcapPacket[1024] = { 0 };
-    //ULONG pcapSize = BuildPcapPacket(nbl, pcapPacket, sizeof(pcapPacket));
-    //if (pcapSize > 0) {
-    //    NTSTATUS sendStatus = SendClientCommand(RUST_PACKET_SECURITY_CHECK_CODE, pcapPacket, pcapSize);
-    //    if (!NT_SUCCESS(sendStatus)) {
-    //        DebugMessage("FilterCallback: enqueue failed, status: 0x%08X\n", sendStatus);
-    //    }
-    //}
-
-	DebugMessage("FilterCallback: hit\n");
+    UCHAR pcapPacket[2048] = { 0 };
+    ULONG pcapSize = BuildPcapPacket(Values, nbl, pcapPacket, sizeof(pcapPacket));
+    if (pcapSize > 0) {
+        SendClientCommand(RUST_PACKET_SECURITY_CHECK_CODE, pcapPacket, pcapSize);
+    }
 }

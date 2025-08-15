@@ -130,6 +130,8 @@ NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize)
         ? ((payloadSize > sizeof(newEntry->data)) ? sizeof(newEntry->data) : payloadSize)
         : 0;
 
+    newEntry->dataLen = (USHORT)copyLength;
+
     if (copyLength > 0)
         RtlCopyMemory(newEntry->data, payload, copyLength);
 
@@ -143,6 +145,8 @@ NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize)
     FreeEntry(newEntry);
     return STATUS_SUCCESS;
 #else
+    DebugMessage("SendClientCommand: Enqueuing command %02X, size %u\n",
+		commandCode, copyLength);
     AddClientCommand(newEntry);
     return STATUS_SUCCESS;
 #endif
