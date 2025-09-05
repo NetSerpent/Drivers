@@ -36,22 +36,16 @@
     </Inf>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="driver.c">
+    <ClCompile Include="driver_entry.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="filter.c">
       <Filter>Source Files\Filter Functions</Filter>
     </ClCompile>
-    <ClCompile Include="dns_helper.c">
-      <Filter>Source Files\Filter Functions</Filter>
-    </ClCompile>
-    <ClCompile Include="wfp.c">
+    <ClCompile Include="wfp_engine.c">
       <Filter>Source Files\Setup</Filter>
     </ClCompile>
     <ClCompile Include="packet_extractor.c">
-      <Filter>Source Files\Communication</Filter>
-    </ClCompile>
-    <ClCompile Include="packet_queue.c">
       <Filter>Source Files\Communication</Filter>
     </ClCompile>
     <ClCompile Include="common.c">
@@ -60,22 +54,10 @@
     <ClCompile Include="globals.c">
       <Filter>Source Files\Common</Filter>
     </ClCompile>
-    <ClCompile Include="initialize_driver.c">
+    <ClCompile Include="driver_init.c">
       <Filter>Source Files\Setup</Filter>
     </ClCompile>
-    <ClCompile Include="network_info.c">
-      <Filter>Source Files\Setup</Filter>
-    </ClCompile>
-    <ClCompile Include="connection.c">
-      <Filter>Source Files\Setup</Filter>
-    </ClCompile>
-    <ClCompile Include="netserpent_packet.c">
-      <Filter>Source Files\Communication</Filter>
-    </ClCompile>
-    <ClCompile Include="packet_approval.c">
-      <Filter>Source Files\Communication</Filter>
-    </ClCompile>
-    <ClCompile Include="async_classify.c">
+    <ClCompile Include="pcap_builder.c">
       <Filter>Source Files\Filter Functions</Filter>
     </ClCompile>
     <ClCompile Include="driver_to_client.c">
@@ -86,7 +68,7 @@
     <ClInclude Include="common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="wfp.h">
+    <ClInclude Include="wfp_engine.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="filter.h">
@@ -95,34 +77,16 @@
     <ClInclude Include="globals.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="packet_queue.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="packet_extractor.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="dns_helper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="initialize_driver.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="network_info.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="connection.h">
+    <ClInclude Include="driver_init.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="constants.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="netserpent_packet.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="packet_approval.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="async_classify.h">
+    <ClInclude Include="pcap_builder.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="driver_to_client.h">

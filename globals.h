@@ -29,6 +29,9 @@ extern ULONG g_SecurityThreshold;
 // Flag indicating that the client & server connection is active.
 extern BOOLEAN g_ClientConnected;
 
+// Protects client command list (g_LastCommandEntry) and g_ClientCommandCount
+extern KSPIN_LOCK g_ClientCommandLock;
+
 // Global copy of the registry path (used when starting the filter services later).
 extern UNICODE_STRING g_RegistryPath;
 

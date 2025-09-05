@@ -1,17 +1,14 @@
-#include "constants.h"
+ï»¿#include "constants.h"
 #include "common.h"
-#include "wfp.h"
+#include "wfp_engine.h"
 #include "filter.h"
 #include "globals.h"
-#include "packet_queue.h"
 #include <ntstrsafe.h> // For RtlStringCchPrintfA
 
-#include "initialize_driver.h"
+#include "driver_init.h"
 
 // For I/O and networking
-#include "network_info.h"
-#include "netserpent_packet.h"
-#include "async_classify.h"
+#include "pcap_builder.h"
 #include "driver_to_client.h"
 
 
@@ -128,9 +125,7 @@ NTSTATUS CommunicationServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRIN
 NTSTATUS FilterServiceStartup(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath)
 {
     NTSTATUS status;
-
-    // Set up your packet queue as before
-    PacketQueueInitialize();
+	KeInitializeSpinLock(&g_ClientCommandLock); // Initialize the spin lock for client commands
 
     // NEW: Initialize injection handle for out-of-band injection
     status = InitializeInjectionHandle();
@@ -228,36 +223,17 @@ NTSTATUS DeviceIoControlHandler(PDEVICE_OBJECT DeviceObject, PIRP Irp)
     {
     case IOCTL_PING:
     {
-        // Let’s assume our ping response is a 32-bit magic number.
+        // Letâ€™s assume our ping response is a 32-bit magic number.
         if (outBufferLength < sizeof(ULONG)) {
             status = STATUS_BUFFER_TOO_SMALL;
         }
         else {
-            *((PULONG)outBuffer) = 0xCAFEBABE;  // arbitrary magic number for “pong”
+            *((PULONG)outBuffer) = 0xCAFEBABE;  // arbitrary magic number for â€œpongâ€
             status = STATUS_SUCCESS;
             information = sizeof(ULONG);
         }
         break;
     }
-
-
-    // TODO: Make this a Push change for the client to handle
-    /*case IOCTL_SET_STREAMING_SERVER_IP:
-    {
-        if (inBufferLength < sizeof(GUID)) {
-            status = STATUS_BUFFER_TOO_SMALL;
-            break;
-        }
-        GUID* newGuid = (GUID*)Irp->AssociatedIrp.SystemBuffer;
-        NTSTATUS saveStatus = SaveNetworkInfo(newGuid);
-        if (NT_SUCCESS(saveStatus)) {
-            KeSetEvent(&AdminConnectionEvent, IO_NO_INCREMENT, FALSE);
-        }
-        status = saveStatus;
-        information = sizeof(GUID);
-        
-        break;
-    }*/
 
     // TODO: Replace this with returning a handle of our last entry in the linked list
     case IOCTL_GET_CLIENT_COMMAND_HANDLE:

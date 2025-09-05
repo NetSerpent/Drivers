@@ -17,11 +17,8 @@
 
 #include "filter.h"
 #include "globals.h"
-#include "packet_queue.h"
 #include "packet_extractor.h"
-#include "dns_helper.h"
-#include "netserpent_packet.h"
-#include "async_classify.h"
+#include "pcap_builder.h"
 #include "driver_to_client.h"
 
 NTSTATUS NotifyCallback(FWPS_CALLOUT_NOTIFY_TYPE type, const GUID* filterkey, const FWPS_FILTER* filter)
@@ -46,23 +43,18 @@ VOID FilterCallback(
     UINT64 flowcontext,
     FWPS_CLASSIFY_OUT0* classifyout)
 {
+    UNREFERENCED_PARAMETER(context);
+	UNREFERENCED_PARAMETER(flowcontext);
+	UNREFERENCED_PARAMETER(filter);
 
     // CONTEXT: THIS FUNCTION IS CALLED FOR EVERY PORT 53 PACKET
-
-    // IMPORTANT: Only rely on NBL if your layer guarantees it’s present.
-    // Use metadata for DNS detection:
-    //if (!IsDnsByMetadata(Values, filter)) {
-    //    classifyout->actionType = FWP_ACTION_PERMIT;
-    //    return;
-    //}
+	// CONTEXT: FWP_ACTION_CALLOUT_INSPECTION -> WE CANNOT BLOCK OR PERMIT, JUST INSPECT
 
     NET_BUFFER_LIST* nbl = (NET_BUFFER_LIST*)layerdata;
     if (!nbl) {
         // Some layers don't supply NBLs → we can't build PCAP, just permit (or handle differently).
         return;
     }
-
-    //DebugMessage("FilterCallback: Processing DNS packet \n");
 
     UCHAR pcapPacket[2048] = { 0 };
     ULONG pcapSize = BuildPcapPacket(Values, nbl, pcapPacket, sizeof(pcapPacket));

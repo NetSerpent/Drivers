@@ -28,9 +28,6 @@
 
 #define MAX_CLIENT_COMMAND_COUNT 1024
 
-// Diagnostic: disable queue entirely to rule out list corruption / memory growth
-#define NS_DIAG_DISABLE_CLIENT_QUEUE 0  // <—— set to 0 to re-enable
-
 volatile LONG g_ClientCommandCount = 0;
 
 // Global tail pointer for doubly-linked list.
@@ -41,72 +38,78 @@ static __forceinline VOID FreeEntry(_In_ ClientCommandLinkedListEntry* e)
     if (e) ExFreePool(e);
 }
 
-#if !NS_DIAG_DISABLE_CLIENT_QUEUE
+
 // --------------------------------------------------------------------
 // Adds a new entry to the tail of the doubly-linked list. (UNLOCKED)
 // NOTE: In high PPS, concurrent callers can corrupt the list. Use
 //       a spin lock if you re-enable this in production.
 // --------------------------------------------------------------------
+// --------------------------------------------------------------------
+// Adds a new entry to the tail of the doubly-linked list. (LOCKED)
+// Safe at <= DISPATCH_LEVEL.
+// --------------------------------------------------------------------
 VOID AddClientCommand(ClientCommandLinkedListEntry* newEntry)
 {
-    if (InterlockedCompareExchange(&g_ClientCommandCount, 0, 0) >= MAX_CLIENT_COMMAND_COUNT) {
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&g_ClientCommandLock, &oldIrql);
+
+    if ((ULONG)g_ClientCommandCount >= MAX_CLIENT_COMMAND_COUNT) {
+        KeReleaseSpinLock(&g_ClientCommandLock, oldIrql);
         DebugMessage("AddClientCommand: Queue is full, dropping command.\n");
         ExFreePool(newEntry);
         return;
     }
 
-    if (g_LastCommandEntry == NULL)
-    {
+    if (g_LastCommandEntry == NULL) {
         g_LastCommandEntry = newEntry;
         newEntry->before = NULL;
         newEntry->next = NULL;
     }
-    else
-    {
-        g_LastCommandEntry->next   = newEntry;
-        newEntry->before           = g_LastCommandEntry;
-        newEntry->next             = NULL;
-        g_LastCommandEntry         = newEntry;
+    else {
+        g_LastCommandEntry->next = newEntry;
+        newEntry->before = g_LastCommandEntry;
+        newEntry->next = NULL;
+        g_LastCommandEntry = newEntry;
     }
-    InterlockedIncrement(&g_ClientCommandCount);
-}
-#else
-// Diagnostic stub: pretend we enqueued, but just free it.
-static VOID AddClientCommand(ClientCommandLinkedListEntry* newEntry)
-{
-    UNREFERENCED_PARAMETER(newEntry);
-    // No queueing in diagnostics
-}
-#endif
 
-#if !NS_DIAG_DISABLE_CLIENT_QUEUE
+    g_ClientCommandCount++;  // protected by the lock
+    KeReleaseSpinLock(&g_ClientCommandLock, oldIrql);
+}
+
+
+
 // FIFO dequeue by walking back to head (O(n)). Caller frees returned node.
+// Now LOCKED to avoid races with AddClientCommand.
 ClientCommandLinkedListEntry* DequeueClientCommand(void)
 {
-    if (g_LastCommandEntry == NULL)
+    KIRQL oldIrql;
+    KeAcquireSpinLock(&g_ClientCommandLock, &oldIrql);
+
+    if (g_LastCommandEntry == NULL) {
+        KeReleaseSpinLock(&g_ClientCommandLock, oldIrql);
         return NULL;
+    }
 
     ClientCommandLinkedListEntry* head = g_LastCommandEntry;
     while (head->before != NULL)
         head = head->before;
 
-    if (head->next != NULL)
+    if (head->next != NULL) {
         head->next->before = NULL;
-    else
+    }
+    else {
+        // list becomes empty
         g_LastCommandEntry = NULL;
+    }
 
     head->next = NULL;
     head->before = NULL;
-    InterlockedDecrement(&g_ClientCommandCount);
+    if (g_ClientCommandCount > 0) g_ClientCommandCount--;
+
+    KeReleaseSpinLock(&g_ClientCommandLock, oldIrql);
     return head;
 }
-#else
-ClientCommandLinkedListEntry* DequeueClientCommand(void)
-{
-    // Diagnostics: nothing ever queued.
-    return NULL;
-}
-#endif
+
 
 NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize)
 {
@@ -135,21 +138,11 @@ NTSTATUS SendClientCommand(UCHAR commandCode, UCHAR* payload, ULONG payloadSize)
     if (copyLength > 0)
         RtlCopyMemory(newEntry->data, payload, copyLength);
 
-#if NS_DIAG_DISABLE_CLIENT_QUEUE
-    // ===================== DIAGNOSTIC BEHAVIOR ======================
-    // Drop immediately to avoid:
-    //  • NonPagedPool growth,
-    //  • lock-free list pointer races,
-    //  • user-mode dequeue lag causing backlog.
-    // ================================================================
-    FreeEntry(newEntry);
-    return STATUS_SUCCESS;
-#else
-    DebugMessage("SendClientCommand: Enqueuing command %02X, size %u\n",
-		commandCode, copyLength);
+    /*DebugMessage("SendClientCommand: Enqueuing command %02X, size %u\n",
+		commandCode, copyLength);*/
     AddClientCommand(newEntry);
     return STATUS_SUCCESS;
-#endif
+
 }
 
 /* Optional utility that might be called elsewhere */

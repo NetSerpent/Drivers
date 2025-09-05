@@ -126,40 +126,28 @@
     <FilesToPackage Include="$(TargetPath)" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="async_classify.c">
+    <ClCompile Include="pcap_builder.c">
       <CompileAs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">CompileAsC</CompileAs>
     </ClCompile>
     <ClCompile Include="common.c" />
-    <ClCompile Include="connection.c" />
-    <ClCompile Include="dns_helper.c" />
     <ClCompile Include="driver_to_client.c" />
     <ClCompile Include="filter.c" />
-    <ClCompile Include="driver.c" />
+    <ClCompile Include="driver_entry.c" />
     <ClCompile Include="globals.c" />
-    <ClCompile Include="initialize_driver.c" />
-    <ClCompile Include="netserpent_packet.c" />
-    <ClCompile Include="network_info.c" />
-    <ClCompile Include="packet_approval.c" />
+    <ClCompile Include="driver_init.c" />
     <ClCompile Include="packet_extractor.c" />
-    <ClCompile Include="packet_queue.c" />
-    <ClCompile Include="wfp.c" />
+    <ClCompile Include="wfp_engine.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="async_classify.h" />
+    <ClInclude Include="pcap_builder.h" />
     <ClInclude Include="common.h" />
-    <ClInclude Include="connection.h" />
     <ClInclude Include="constants.h" />
-    <ClInclude Include="dns_helper.h" />
     <ClInclude Include="driver_to_client.h" />
     <ClInclude Include="filter.h" />
     <ClInclude Include="globals.h" />
-    <ClInclude Include="initialize_driver.h" />
-    <ClInclude Include="netserpent_packet.h" />
-    <ClInclude Include="network_info.h" />
-    <ClInclude Include="packet_approval.h" />
+    <ClInclude Include="driver_init.h" />
     <ClInclude Include="packet_extractor.h" />
-    <ClInclude Include="packet_queue.h" />
-    <ClInclude Include="wfp.h" />
+    <ClInclude Include="wfp_engine.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

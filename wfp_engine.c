@@ -1,19 +1,19 @@
-/*======================================================================
-  wfp.c – Windows Filtering Platform boiler-plate
+ï»¿/*======================================================================
+  wfp.c â€“ Windows Filtering Platform boiler-plate
   ----------------------------------------------------------------------
   Opens WFP engine, registers our call-out, and wires it to FilterCallback().
   This version is minimally modified to target the ALE_AUTH_CONNECT
   layer to properly inspect DNS requests.
 
   Public helpers
-    • NTSTATUS InitializeWfp(void)      – one-stop bring-up
-    • VOID     UnInitWfp(void)          – symmetrical cleanup
+    â€¢ NTSTATUS InitializeWfp(void)      â€“ one-stop bring-up
+    â€¢ VOID     UnInitWfp(void)          â€“ symmetrical cleanup
 
   Key globals (in globals.h)
     EngineHandle, RegCalloutId, AddCalloutId, filterid
 ======================================================================*/
 
-#include "wfp.h"
+#include "wfp_engine.h"
 #include "filter.h"
 #include "globals.h"
 
